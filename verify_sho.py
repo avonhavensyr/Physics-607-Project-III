@@ -17,6 +17,7 @@ Checks (each MC value has a binning error bar):
 import numpy as np
 import matplotlib.pyplot as plt
 from sho_mcmc import metropolis, coefficients, binning_error
+import tqdm
 
 
 # ---------------- exact results ----------------
@@ -221,7 +222,8 @@ if __name__ == "__main__":
     verify(chain, acc, N, a, m, w, burn, save=save)
     if not save:
         plt.show()
-'''
+        
+r'''
 MC = the simulation's estimate
 \pm err = 1\sigma error bar from binning
 lattice = the exact value 

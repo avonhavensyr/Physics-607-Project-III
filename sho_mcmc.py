@@ -1,5 +1,29 @@
+"""
+Euclidean path-integral Metropolis for the harmonic oscillator (hbar = 1).
+
+The path is one array x of length N: x[t] = position at time slice t (spacing a),
+with periodic ends. Lattice action:
+    S[x] = sum_t [ A x_t^2 - B x_t x_{t+1} ],   A = m/a + a m w^2/2,  B = m/a
+We sample P[x] ~ exp(-S[x]).
+
+Usage:
+    from sho_mcmc import metropolis, exact_x2, summary, plot_diagnostics
+    chain, acc = metropolis(N=..., a=..., m=..., w=..., n_sweeps=..., delta=..., x0=..., seed=...)
+    summary(chain, acc, N=..., a=..., m=..., w=..., burn=..., filename=...)
+    plot_diagnostics(chain, a=..., m=..., w=..., burn=..., thin=...)
+
+    # off-the-shelf sampler (emcee) on the same target
+    from sho_mcmc import emcee_sampler
+    chain, acc = emcee_sampler(N=..., a=..., m=..., w=..., n_walkers=..., n_steps=..., thin=...,
+                               x0=..., x0_spread=..., seed=...)
+    # chain shape: (n_steps // thin, n_walkers, N). summary/plot_diagnostics expect a
+    # metropolis chain (n_sweeps+1, N); verify_sho.verify handles both.
+"""
 import numpy as np
 import matplotlib.pyplot as plt
+import emcee
+import tqdm
+
 
 
 def coefficients(a, m, w):
@@ -30,7 +54,7 @@ def metropolis(N, a, m, w, n_sweeps, delta, x0, seed=None):
     even = np.arange(N) % 2 == 0
     accepted = 0
 
-    for s in range(1, n_sweeps + 1):
+    for s in tqdm.tqdm(range(1, n_sweeps + 1)):
         for half in (even, ~even):
             shift = rng.uniform(-delta, delta, N)
             dS = shift * (A * (shift + 2 * x) - B * (np.roll(x, 1) + np.roll(x, -1)))
@@ -40,6 +64,23 @@ def metropolis(N, a, m, w, n_sweeps, delta, x0, seed=None):
         chain[s] = x
 
     return chain, accepted / (n_sweeps * N)
+
+
+def emcee_sampler(N, a, m, w, n_walkers, n_steps, thin, x0, x0_spread, seed=None):
+    """
+    Same target P[x] ~ exp(-S[x]) sampled with emcee's affine-invariant ensemble
+    (stretch move). log P = -S, evaluated for all walkers at once.
+    n_walkers must be >= 2 N. Walkers start at x0 + x0_spread * Normal(0, 1)
+    (they must not all start at the same point). Every `thin`-th step is stored.
+    Memory: (n_steps // thin) * n_walkers * N * 8 bytes.
+    Returns chain (n_steps // thin, n_walkers, N) and the mean acceptance fraction.
+    """
+    sampler = emcee.EnsembleSampler(n_walkers, N, lambda X: -action(X, a, m, w), vectorize=True)
+    if seed is not None:
+        sampler.random_state = np.random.RandomState(seed).get_state()
+    p0 = x0 + x0_spread * np.random.default_rng(seed).standard_normal((n_walkers, N))
+    sampler.run_mcmc(p0, n_steps // thin, thin_by=thin)   # stores n_steps // thin rows
+    return sampler.get_chain(), sampler.acceptance_fraction.mean()
 
 
 def exact_x2(N, a, m, w):
@@ -129,4 +170,3 @@ def plot_diagnostics(chain, a, m, w, burn, thin, t0=None, filename=None):
     if filename:
         fig.savefig(filename, dpi=130)
     return fig
-   
