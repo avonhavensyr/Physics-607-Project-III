@@ -22,9 +22,7 @@ Usage:
 import numpy as np
 import matplotlib.pyplot as plt
 import emcee
-import tqdm
-
-
+from tqdm import tqdm
 
 def coefficients(a, m, w):
     """A, B of the lattice action."""
@@ -54,7 +52,7 @@ def metropolis(N, a, m, w, n_sweeps, delta, x0, seed=None):
     even = np.arange(N) % 2 == 0
     accepted = 0
 
-    for s in tqdm.tqdm(range(1, n_sweeps + 1)):
+    for s in tqdm(range(1, n_sweeps + 1), desc="Metropolis",unit="sweep"):
         for half in (even, ~even):
             shift = rng.uniform(-delta, delta, N)
             dS = shift * (A * (shift + 2 * x) - B * (np.roll(x, 1) + np.roll(x, -1)))
@@ -79,7 +77,7 @@ def emcee_sampler(N, a, m, w, n_walkers, n_steps, thin, x0, x0_spread, seed=None
     if seed is not None:
         sampler.random_state = np.random.RandomState(seed).get_state()
     p0 = x0 + x0_spread * np.random.default_rng(seed).standard_normal((n_walkers, N))
-    sampler.run_mcmc(p0, n_steps // thin, thin_by=thin)   # stores n_steps // thin rows
+    sampler.run_mcmc(p0, n_steps // thin, thin_by=thin, progress=True, progress_kwargs={"desc": "Emcee","unit":"step"})  # stores n_steps // thin rows
     return sampler.get_chain(), sampler.acceptance_fraction.mean()
 
 
