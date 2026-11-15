@@ -21,6 +21,7 @@ bars for both m and w, and fit p-value > 0.001.
 
 Run with ``sho-mcmc-inject`` (options: ``sho-mcmc-inject --help``).
 """
+
 import argparse
 import json
 

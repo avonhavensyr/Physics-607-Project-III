@@ -1,4 +1,5 @@
 """Error bars and autocorrelation times for correlated Monte Carlo series."""
+
 import numpy as np
 
 

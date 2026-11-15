@@ -1,4 +1,5 @@
 """Summary of a run and diagnostic figures."""
+
 import matplotlib.pyplot as plt
 import numpy as np
 

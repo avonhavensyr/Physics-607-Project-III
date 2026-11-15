@@ -10,6 +10,7 @@ lattice value and with the continuum value at beta = N a:
 * the virial theorem, <T_prim> against <V>
 * the autocorrelation function of x^2 and its integrated autocorrelation time
 """
+
 import matplotlib.pyplot as plt
 import numpy as np
 

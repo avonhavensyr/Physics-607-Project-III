@@ -5,6 +5,7 @@ Example::
 
     sho-mcmc --N 64 --a 0.25 --sweeps 50000 --burn 5000 --seed 1 --out run1
 """
+
 import argparse
 import json
 

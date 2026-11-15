@@ -10,6 +10,7 @@ the Euclidean action is (hbar = 1)
 with A = m/a + a m w^2 / 2 and B = m/a. Paths are sampled from exp(-S[x]), a
 Gaussian, so many averages are known exactly.
 """
+
 import numpy as np
 
 

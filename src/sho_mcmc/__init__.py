@@ -18,6 +18,7 @@ injection
 main
     Command-line entry point ``sho-mcmc``.
 """
+
 from .diagnostics import autocorrelation, binning_error
 from .lattice import action, coefficients, exact_correlator, exact_values, exact_x2
 from .metropolis import metropolis

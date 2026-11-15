@@ -1,4 +1,5 @@
 """Hand-written checkerboard Metropolis sampler for the lattice oscillator."""
+
 import numpy as np
 
 from .lattice import coefficients
