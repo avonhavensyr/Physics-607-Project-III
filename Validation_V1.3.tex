@@ -8,17 +8,27 @@
 
 \author{Javad Yousefian \and Alexandra VonHaven \and Kevin Geumhan}
 
-\date{Version 1, November 9, 2026}
+\date{Version 1.3, November 14, 2026}
 
 \begin{document}
 \maketitle
 
 \section{Introduction}
-In this project, we plan to sample the path integral of the quantum harmonic oscillator in imaginary time using Markov chain Monte Carlo methods. We will write our own Metropolis sampler and also use \texttt{emcee}~\cite{emcee} so we can directly compare the two methods. This document describes our code validation plan and was written before any code, so it does not include results.
+In this project, we plan to sample the path integral of the quantum harmonic oscillator in imaginary time using Markov chain Monte Carlo methods. We will write our own Metropolis sampler and also use \texttt{emcee}~\cite{emcee} so we can directly compare the two methods. This document describes our code validation plan. Version 1 was written before any code, so it does not include results; the later revisions are listed below.
 
-Our main goal is to check if our Metropolis code samples the correct distribution. The harmonic oscillator is a good choice for validation because its lattice distribution is Gaussian, which lets us compare with exact analytical results. 
+Our main goal is to check if our Metropolis code samples the correct distribution. The harmonic oscillator is a good choice for validation because its lattice distribution is Gaussian, which lets us compare with exact analytical results.
+
+\paragraph{Revisions.} Version 1 (November 9) was written before any code and without AI. Every later change is a separate commit in our Git repository, so the old text stays in the history and each commit message says what changed and why.
+\begin{itemize}
+  \item Version 1.1: \fillin{what changed and why}.
+  \item Version 1.2 (November 14): our code samples a periodic lattice, not the fixed-endpoint lattice of version 1, so we rewrote Tests 6 and 8 to match the code, and made Test 11 precise.
+  \item Version 1.3 (November 14): we rewrote Sections 3, 4, 5 and 7 for the periodic code, and Test 10, which now gets back both $m$ and $\omega$ and has a negative control. The parts that Kevin and Alexandra still update are marked in red.
+\end{itemize}
+The text of the changes in versions 1.2 and 1.3 was drafted with help from Claude (AI); see \texttt{AI\_USE.md}.
 
 \section{The model}
+\fillin{Alexandra: rewrite this section for the periodic lattice our code uses (see Section 4 and Test 10).}
+
 The Euclidean action of the oscillator is
 \begin{equation}
   S_E = \int_0^{T_\tau} d\tau \left[ \frac{m}{2}\dot x^2 + \frac{m\omega^2}{2}x^2 \right].
@@ -57,41 +67,46 @@ For small $a$ this goes to 1, which is the continuum gap $E_1 - E_0 = \hbar\omeg
 
 \section{What the code will do}
 \begin{enumerate}
-  \item Make a path with $u_0 = u_N = 0$ and compute its action, Eq.~\eqref{eq:action}.
+  \item Make a periodic path $x_0, \dots, x_{N-1}$, with $x_N = x_0$, and compute its action.
   \item Sample the path with our Metropolis code, and separately with \texttt{emcee}.
-  \item Measure $\langle u_j\rangle$, $\langle u_j^2\rangle$, $\langle u_j^4\rangle$ and the correlation $\langle u_{j_0} u_{j_0+k}\rangle$, where $j_0 = N/2$ is the middle site.
-  \item Fit the decay of the correlation to get the energy gap.
+  \item Measure $\langle x\rangle$, $\langle x^2\rangle$, $\langle x^4\rangle$, the correlator $C(j) = \langle x_t x_{t+j}\rangle$ and the energies. The periodic lattice looks the same at every time slice, so we average over all slices $t$, which gives more statistics than using only the middle site.
+  \item Fit the measured correlator with its exact lattice form to get back $m$ and $\omega$, and from them the energy gap (Test~10).
   \item Compute error bars and convergence checks.
-  \item Save the settings, the seed, the results and the plots, so every run can be repeated.
+  \item Save the settings, the seed, the results and the plots, so every run can be repeated. Every command of our package has an \texttt{-{}-out} option that does this, and \texttt{scripts/run\_all.sh} reproduces all our results.
 \end{enumerate}
 
 \section{Samplers}
-\paragraph{Our Metropolis sampler.} In one sweep we go through all sites $j = 1, \dots, N-1$. For each site we propose $u_j' = u_j + \delta$, with $\delta$ uniform in $[-\Delta, \Delta]$. The change of the action only depends on the two neighbours:
+\paragraph{Our Metropolis sampler.} We write the lattice action as $S = A\sum_t x_t^2 - B\sum_t x_t x_{t+1}$, with $A = m/a + am\omega^2/2$ and $B = m/a$. In one sweep we go through all $N$ sites of the periodic path; there are no fixed endpoints. For each site we propose $x_t' = x_t + u$, with $u$ uniform in $[-\delta, \delta]$. The change of the action only depends on the two neighbours:
 \begin{equation}
-  \Delta\mathcal S = \delta\,[\delta + 2u_j - g(u_{j-1}+u_{j+1})].
+  \Delta S = u\,[A(u + 2x_t) - B(x_{t-1}+x_{t+1})].
   \label{eq:dS}
 \end{equation}
-We accept with probability $\min(1, e^{-\Delta \mathcal S})$. If we reject, we keep the old value and still count it as the next sample. To make it faster, we update all odd sites at the same time and then all even sites. This is allowed because odd sites are not neighbours of each other.
+We accept with probability $\min(1, e^{-\Delta S})$. If we reject, we keep the old value and still count it as the next sample. To make it faster, we update all even sites at the same time and then all odd sites. This is allowed because even sites are not neighbours of each other; it needs $N$ to be even.
 
-The expected acceptance rate can also be calculated exactly. Given its neighbours, $u_j$ is Gaussian with variance $1/2$ (for any $a$ and $N$), and averaging over this gives
+The expected acceptance rate can also be calculated exactly. Given its neighbours, $x_t$ is Gaussian with variance $1/(2A)$. If we measure the step in units where this variance is $1/2$, that is $\Delta = \delta\sqrt{A}$, averaging over this Gaussian gives
 \begin{equation}
-  A(\Delta) = \mathrm{erfc}\!\left(\frac\Delta 2\right) + \frac{2}{\sqrt\pi\,\Delta}\left(1 - e^{-\Delta^2/4}\right).
+  P_{\text{acc}}(\Delta) = \mathrm{erfc}\!\left(\frac\Delta 2\right) + \frac{2}{\sqrt\pi\,\Delta}\left(1 - e^{-\Delta^2/4}\right).
   \label{eq:acc}
 \end{equation}
-For example $A(1) = 0.729$, $A(2) = 0.514$ and $A(3) = 0.370$. It does not depend on $a$, so the acceptance should be the same for every lattice spacing.
+For example $P_{\text{acc}}(1) = 0.729$, $P_{\text{acc}}(2) = 0.514$ and $P_{\text{acc}}(3) = 0.370$. In these units it does not depend on $a$, so the acceptance should be the same for every lattice spacing. In the code we set $\delta = \Delta/\sqrt{A}$.
 
-We will try $\Delta = 0.5$, 1, 1.5, 2, 2.5, 3, and 4 in short pilot runs. After that, we will choose the value that gives the most effective samples with an acceptance rate between about 35\% and 65\%. We expect this value to be around 2.5.
+We will try $\Delta = 0.5$, 1, 1.5, 2, 2.5, 3, and 4 in pilot runs (Test~8). After that, we will choose the value that gives the most effective samples with an acceptance rate between about 35\% and 65\%. We expect this value to be around 2.5, and we use the value chosen in Test~8 for all main runs.
 
-\paragraph{emcee.} For the second sampler, we use \texttt{emcee.EnsembleSampler} with the same log probability $-\mathcal S(u)$ and at least $2D$ walkers. Because emcee works differently from our sampler, we expect the averages to match but not the individual chains. emcee is slow in high dimensions, so we will mainly use it for $N = 64$. If it is too slow, we will switch to $N = 16$ and note this change in the report. We will run emcee four times independently so we can compute $\hat R$.
+\paragraph{emcee.} \fillin{Kevin: update this paragraph to match \texttt{ensemble.py}.} For the second sampler, we use \texttt{emcee.EnsembleSampler} with the same log probability $-\mathcal S(u)$ and at least $2D$ walkers. Because emcee works differently from our sampler, we expect the averages to match but not the individual chains. emcee is slow in high dimensions, so we will mainly use it for $N = 64$. If it is too slow, we will switch to $N = 16$ and note this change in the report. We will run emcee four times independently so we can compute $\hat R$.
 
-\paragraph{Settings.} Our main lattice is $N = 64$ and $a = 0.25$, so $T = Na = 16$. For the energy gap test, we also use $N = 16$ with $a = 1$, and $N = 32$ with $a = 0.5$. We start four chains, each with 8,000 sweeps of burn-in and 40,000 sweeps for sampling. If the convergence checks fail, we will run longer. Two chains start at $u = 0$, and the other two start from a random path that is much wider than the real distribution.
+\paragraph{Settings.} Our main lattice is $N = 64$ and $a = 0.25$, so $T = Na = 16$, with $m = \omega = 1$. For the injection test (Test~10) we also use $N = 16$ with $a = 1$, $N = 32$ with $a = 0.5$, and two cases with $m \ne 1$ and $\omega \ne 1$. We start four chains, each with 8,000 sweeps of burn-in and 40,000 sweeps for sampling, with the step chosen in Test~8. If the convergence checks fail, we will run longer. Two chains start at $x = 0$, and the other two start from a random path five times wider than the real distribution.
 
 \section{Error bars and when a test passes}
 Our samples are correlated, so we cannot use the normal $\sigma/\sqrt{M}$ error. We compute the integrated autocorrelation time
 \begin{equation}
   \tau_{\text{int}} = \frac12 + \sum_{\ell=1}^{\ell_{\max}} \rho(\ell),
 \end{equation}
-where $\rho(\ell)$ is the autocorrelation at lag $\ell$ and $\ell_{\max}$ is chosen with Sokal's window~\cite{sokal}. The effective sample size is then $M/(2\tau_{\text{int}})$ for $M$ samples. emcee uses $1 + 2\sum\rho$, which is $2\tau_{\text{int}}$, so we divide emcee's number by 2. For the error bars we use batch means, with batches at least $20\tau_{\text{int}}$ long.
+where $\rho(\ell)$ is the autocorrelation at lag $\ell$ and $\ell_{\max}$ is chosen with Sokal's window~\cite{sokal}. The effective sample size is then $M/(2\tau_{\text{int}})$ for $M$ samples. For the error bars we average over blocks of consecutive sweeps, so that the correlations are included:
+\begin{itemize}
+  \item Tests 6 and 11 use binning: the error of the mean of the block averages, at the largest block size that still leaves at least 32 blocks.
+  \item Test 10 uses 100 blocks, each at least $20\tau_{\text{int}}$ long, and also takes the covariance between the measured values from them for its correlated fit.
+  \item The physics checks take the larger of two estimates: binning, averaged over the plateau, and $\sqrt{2\tau_{\text{int}}\,\mathrm{var}/M}$. For \texttt{emcee} they also use the spread between walkers. \fillin{Kevin: check this sentence.}
+\end{itemize}
 
 For the statistical tests we compare with the exact value using
 \begin{equation}
@@ -101,6 +116,8 @@ and a test passes if $z \le 3.5$. We do many comparisons, so one of them could f
 
 \section{Tests}
 For every test we write what we check, when it passes, and what it would mean if it fails.
+
+\fillin{Tests 1--5, 7 and 9 still describe the fixed-endpoint lattice; Kevin and Alexandra will update them.}
 
 \subsection*{Test 1: Action and the update}
 We compare $\Delta\mathcal S$ from Eq.~\eqref{eq:dS} with the difference of the full action for 1000 random paths. They should agree to $10^{-10}$. We also check that $\frac12 u^T Q u$ gives the same action, that the acceptance probability is always between 0 and 1, and that the fast odd/even sweep gives exactly the same result as a simple loop over the sites when we give both the same random numbers. If this fails, there is probably a sign or index mistake, or a problem at the endpoints.
@@ -158,32 +175,80 @@ We look at trace plots of $u_{j_0}$, $u_{j_0}^2$ and the path average $\bar u$. 
 
 \textbf{What changed.} Our code proposes $x_t\to x_t+u$ with $u$ uniform in
 $[-\delta,\delta]$, in the units of $x$. Given its neighbours, $x_t$ is
-Gaussian with variance $1/(2A)$, where $A=m/a+am\omega^2/2$, while Eq.~(8) is
-written for variance $1/2$. A step $\Delta$ in the units of Eq.~(8) is therefore
-$\delta=\Delta/\sqrt{A}$ in the code. With this conversion Eq.~(8) holds
-unchanged and still does not depend on $a$.
+Gaussian with variance $1/(2A)$, where $A=m/a+am\omega^2/2$, while
+Eq.~\eqref{eq:acc} is written for variance $1/2$. A step $\Delta$ in the units
+of Eq.~\eqref{eq:acc} is therefore $\delta=\Delta/\sqrt{A}$ in the code. With
+this conversion Eq.~\eqref{eq:acc} holds unchanged and still does not depend
+on $a$.
 
 \textbf{What we check.} For each pilot step $\Delta=0.5,1,1.5,2,2.5,3,4$ we run
 at $a=0.25$ ($N=64$, 40{,}000 sweeps) and at $a=1$ ($N=16$, 5{,}000 sweeps), with
 $\delta=\Delta/\sqrt{A}$, and compare the measured acceptance, with a binning
-error bar, to Eq.~(8): 0.860, 0.729, 0.612, 0.514, 0.434, 0.370 and 0.282.
+error bar, to Eq.~\eqref{eq:acc}: 0.860, 0.729, 0.612, 0.514, 0.434, 0.370 and
+0.282.
 
-\textbf{When it passes.} Every measured acceptance agrees with Eq.~(8) within
-$z\le3.5$, at both lattice spacings.
+\textbf{When it passes.} Every measured acceptance agrees with
+Eq.~\eqref{eq:acc} within $z\le3.5$, at both lattice spacings.
 
 \textbf{Choice of $\Delta$.} At $a=0.25$ we also measure $\tau_{\rm int}$ of the
 path average and of $x^2$, and choose the $\Delta$ that gives the most
 effective samples per sweep, $1/(2\tau_{\rm int})$ for the slower of the two,
 among the steps with acceptance between 35\% and 65\%. We expect about 2.5.
 
-\textbf{If it fails.} There is a mistake in the $\delta^2$ part of $\Delta S$, in
+\textbf{If it fails.} There is a mistake in the $u^2$ part of $\Delta S$, in
 the proposal width, or in the accept/reject step.
 
 \subsection*{Test 9: Our sampler against emcee}
 We compare $\langle u_{j_0}\rangle$, $\langle u_{j_0}^2\rangle$ and the correlation at $k = 1, 4, 8$ from our sampler and from emcee at $N = 64$. The difference divided by the combined error bar should be at most 3. Both samplers should also agree with the exact answer, because two samplers can agree with each other and still both be wrong. If one of them does not converge, we do not use it to judge the other one.
 
-\subsection*{Test 10: Getting back the energy gap}
-This is our injection test: we put $\omega$ into the code (through $a$), and we check that we get it back from the samples. For $a = 1$, 0.5 and 0.25 (all with $T = 16$) we fit $\langle u_{j_0}u_{j_0+k}\rangle \propto e^{-\hat\mu k}$ for times $ka$ between 0.5 and 3, using the middle part of the lattice. Then $\hat\mu/a$ should agree with Eq.~\eqref{eq:wlat} within 3.5 error bars, and the fit should be good ($p > 0.001$). At $a = 1$ the lattice value 1.099 is about 10\% above the continuum value, so we hope to see this difference. If the test fails, the fit is wrong or the sampler is biased at long distances.
+\subsection*{Test 10 (revised): Injection test --- getting back $m$ and $\omega$}
+
+\textbf{What changed.} Version 1 of this test used the fixed-endpoint lattice
+and its energy-gap formula. Our code samples the periodic lattice with the
+action $S=\sum_t\big[\tfrac{m}{2a}(x_{t+1}-x_t)^2+\tfrac{a m\omega^2}{2}x_t^2\big]$,
+so we rewrote the test for it, and we now recover both $m$ and $\omega$ instead
+of only the energy gap.
+
+\textbf{What we check.} We put known values of $m$ and $\omega$ into the
+simulation, sample with our Metropolis code, and get $m$ and $\omega$ back from
+the samples alone. On the periodic lattice the correlator is known exactly for
+$0\le j\le N$:
+\begin{equation}
+C(j)=\langle x_t x_{t+j}\rangle
+=\frac{\cosh\big(\mu(N/2-j)\big)}{2(m/a)\,\sinh\mu\,\sinh(\mu N/2)},
+\qquad \cosh\mu=1+\frac{a^2\omega^2}{2}.
+\end{equation}
+We measure $C(j)$, averaged over all $t$, and fit this formula with $m$ and
+$\omega$ as the two free parameters: the decay rate gives $\omega$ and the
+overall size gives $m$. The fit uses times between 0.5 and 3 decay times, with
+the decay rate estimated from the data, so the analysis never uses the injected
+values. It is a correlated fit, with the covariance estimated from 100 blocks of
+the chain, each at least $20\tau_{\rm int}$ long. The formula comes from the
+action, not from our code, so a bug in the code cannot cancel out.
+
+\textbf{Cases.} $(N,a,m,\omega)=(16,1,1,1)$, $(32,0.5,1,1)$, $(64,0.25,1,1)$,
+$(32,0.5,2,0.5)$ and $(32,0.5,0.5,2)$, all with $T=Na=16$ and $10^5$ sweeps
+each. The last two have $m\ne1$ and $\omega\ne1$, because with $m=\omega=1$ some
+mistakes, such as a missing factor of $m$ in the potential, would not show up.
+
+\textbf{When it passes.} For every case, the recovered $m$ and $\omega$ agree
+with the injected values within 3.5 error bars, and the fit is good ($p>0.001$).
+
+\textbf{Can the test fail?} As a negative control, we also sample with
+$\omega=1.1$ but compare the result with $\omega=1$. The test must flag this
+(pull above 3.5); if it does not, the test is too weak to be useful.
+
+\textbf{Lattice effect.} The energy gap on this lattice is
+$E_1-E_0=\mu/a=(2/a)\,\mathrm{arsinh}(a\omega/2)$, which is below $\omega$: it
+is $0.962\,\omega$ at $a\omega=1$, $0.990\,\omega$ at $a\omega=0.5$ and
+$0.997\,\omega$ at $a\omega=0.25$. We report it to show the discretization
+effect, but the pass test is on $m$ and $\omega$ themselves.
+
+\textbf{If it fails.} A wrong $\omega$ means the sampler gets the long-distance
+correlations wrong, or the action in the code is not the one above. A wrong $m$
+with a correct $\omega$ points to a wrong overall scale, for example a factor of
+2 in the action. A bad fit means the measured correlator does not have the
+expected shape, or our error bars are wrong.
 
 \subsection*{Test 11 (revised): Multi-walker test}
 
@@ -212,16 +277,20 @@ freedom.
 burn-in was too short for its starting point. If the walkers agree with each
 other but not with 0.6827, the sampler converges to the wrong distribution.
 
-
 \section{Test execution}
-When we write the code, we will turn these tests into \texttt{pytest} files where possible, so they can run automatically. Tests 1--4 and 8 are fast and will run on every pull request. Tests 5--7 need longer runs, and Tests 9 and 10 will be in a separate script. We have to look at the trace plots in Test 7 ourselves.
-
-
+We did not turn the tests into \texttt{pytest} files. Our tests are statistical runs whose numbers and figures we want to keep for the report, so instead every test runs with one command of our installed package, and \texttt{-{}-out} saves its output (numbers, PASS or FAIL, figures):
+\begin{itemize}
+  \item \texttt{sho-mcmc-validate} runs Tests 6, 8 and 11, and the other tests once they are added;
+  \item \texttt{sho-mcmc-inject} runs Test 10;
+  \item \texttt{sho-mcmc -{}-emcee} runs the physics and symmetry checks for both samplers (Test 9);
+  \item \texttt{bash scripts/run\_all.sh} runs all of them and saves everything in \texttt{results/}.
+\end{itemize}
+The tests do not run automatically on each pull request. The author runs the relevant tests before opening a pull request, and the reviewer runs them again before merging. We have to look at the trace plots in Test~7 ourselves.
 
 \section{Workflow}
 We will add this plan to our Git repository before we start coding, so the Git history shows that the plan came before the code. After that, all changes (including code, tests, and this plan) will go through pull requests, and the other person will review them in writing before merging.
 
-If a test fails or is not useful, we will update the plan in a new commit and keep the old version in the history. The commit message and the report will explain what changed and why. 
+If a test fails or is not useful, we will update the plan in a new commit and keep the old version in the history. The commit message and the report will explain what changed and why.
 
 
 \begin{thebibliography}{9}
