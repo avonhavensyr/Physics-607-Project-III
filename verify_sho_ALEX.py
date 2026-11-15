@@ -1,5 +1,5 @@
 """
-Multi-walker validation of the lattice harmonic oscillator (sho_mcmc.py).
+Multi-walker validation of the lattice harmonic oscillator (sho_mcmc package).
 
 Runs K independent Metropolis walkers (own seed each, spread-out starting points)
 and checks, for <x^2> and for the fraction of time spent in each region [lo, hi]:
@@ -10,18 +10,22 @@ and checks, for <x^2> and for the fraction of time spent in each region [lo, hi]
                                                  binning error     (should be ~1)
   d) burn-in is long enough                      trace plot of x^2 for every walker
 
+Test 7 (convergence) trace plots: x at the middle site j0 = N/2, its square,
+and the path average, for every walker against sweep number, with the burn-in
+marked. The path average changes the slowest, so it is the one to watch.
+
 Region fraction: every x_t of the path is a Gaussian with variance C(0) = exact
 lattice <x^2>, so the expected fraction in [lo, hi] comes from erf.
 MC estimate per sweep: the fraction of the N time slices inside [lo, hi].
 
+Needs the package installed (once, from the repository folder):  pip install -e .
 Set the parameters at the bottom, then run:  python verify_sho_ALEX.py
 """
 from math import erf, sqrt
 
 import numpy as np
 import matplotlib.pyplot as plt
-from sho_mcmc import metropolis, binning_error
-from verify_sho import exact_correlator
+from sho_mcmc import binning_error, exact_correlator, metropolis
 
 
 # ---------------- exact results ----------------
@@ -50,7 +54,7 @@ def run_walkers(K, N, a, m, w, sweeps, delta, x0_spread=3.0, seed=None):
     seeds = np.random.SeedSequence(seed).spawn(K)
     chains, accs = [], []
     for x0, s in zip(x0s, seeds):
-        chain, acc = metropolis(N, a, m, w, sweeps, delta, x0, s)
+        chain, acc = metropolis(N, a, m, w, sweeps, delta, x0, s, progress=False)
         chains.append(chain)
         accs.append(acc)
     return np.array(chains), np.array(accs), x0s      # chains: (K, sweeps+1, N)
@@ -119,6 +123,7 @@ def verify_walkers(chains, accs, x0s, regions, N, a, m, w, burn, save=None):
 
     title = f"N={N}, a={a}, m={m}, w={w}, K={K} walkers"
     figs = {"traces": plot_traces(chains, x0s, lattice, burn, title),
+            "test7_traces": plot_test7_traces(chains, x0s, N, a, m, w, burn, title),
             "pulls": plot_pulls(results, keys, title),
             "regions": plot_regions(results, regions, lattice, continuum, title)}
     if save:
@@ -144,6 +149,45 @@ def plot_traces(chains, x0s, lattice, burn, title=""):
     ax[1].set(title="Whole run")
     ax[0].legend(fontsize=7, ncol=2)
     fig.suptitle(title)
+    return fig
+
+
+def plot_test7_traces(chains, x0s, N, a, m, w, burn, title=""):
+    """
+    Test 7 trace plots: x_{j0}, x_{j0}^2 and the path average for every walker.
+
+    Left column: the start of the run, to see the burn-in. Right column: the
+    whole run. The black line is the exact lattice mean and the grey band is
+    ± one exact standard deviation of the quantity, so a converged walker
+    should wander inside and around the band, with no drift.
+    """
+    j0 = N // 2
+    C = exact_correlator(N, a, m, w)
+    x_mid = chains[:, :, j0]                                       # (K, sweeps+1)
+    quantities = [
+        # label, series, exact mean, exact standard deviation
+        (rf"$x_{{{j0}}}$", x_mid, 0.0, np.sqrt(C[0])),
+        (rf"$x_{{{j0}}}^2$", x_mid**2, C[0], np.sqrt(2) * C[0]),   # Gaussian: var(x^2) = 2 C(0)^2
+        (r"path average $\bar x$", chains.mean(axis=2), 0.0, np.sqrt(C.mean())),
+    ]
+    n = chains.shape[1]
+    early = min(n, 3 * burn) if burn else n
+    fig, ax = plt.subplots(3, 2, figsize=(12, 9), sharex="col", constrained_layout=True)
+    for row, (label, series, mean, sd) in zip(ax, quantities):
+        for i, (tr, x0) in enumerate(zip(series, x0s)):
+            row[0].plot(tr[:early], lw=0.7, color=f"C{i % 10}", label=f"x0={x0:+.1f}")
+            row[1].plot(tr, lw=0.3, alpha=0.6, color=f"C{i % 10}")
+        for axi in row:
+            axi.axhspan(mean - sd, mean + sd, color="0.5", alpha=0.2)
+            axi.axhline(mean, color="k", lw=1.2)
+            axi.axvline(burn, color="r", ls="--")
+            axi.set(ylabel=label)
+    ax[0, 0].set_title("Start of run (burn-in)")
+    ax[0, 1].set_title("Whole run")
+    ax[-1, 0].set_xlabel("sweep")
+    ax[-1, 1].set_xlabel("sweep")
+    ax[0, 0].legend(fontsize=7, ncol=2)
+    fig.suptitle(f"Test 7 trace plots, {title}  (black: exact, band: ±1 sd, red: burn-in)")
     return fig
 
 
