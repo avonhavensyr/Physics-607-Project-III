@@ -1,0 +1,3 @@
+[console_scripts]
+sho-mcmc = sho_mcmc.main:main
+sho-mcmc-inject = sho_mcmc.injection:main
