@@ -8,8 +8,9 @@ emcee's only role is to be a reference to compare it against: it samples the sam
 target, and every table and figure shows hand-written vs lattice, emcee vs lattice,
 and emcee vs hand-written.
 
-Checks (each MC value has an error bar: binning for Metropolis, spread between
-walkers for emcee):
+Checks (each MC value has an error bar, the larger of two estimates:
+Metropolis: binning plateau vs autocorrelation time;
+emcee: spread between walkers vs binning/autocorrelation of the walker average over time):
   <x>  = 0                                   by symmetry
   <p>  = 0                                   by symmetry (identically 0 on a periodic lattice)
   <V>  = 1/2 m w^2 <x^2>                     vs exact lattice and continuum at beta = N a
@@ -17,12 +18,23 @@ walkers for emcee):
   <E>  virial estimator  (<T> = <V> for SHO) vs continuum
   virial theorem: <T_primitive> vs <V>
   autocorrelation function of x^2 and its integrated autocorrelation time
-  hand-written Metropolis vs emcee: (MH - emcee) / combined error
+  hand-written Metropolis vs emcee: (emcee - MH) / combined error
+
+Symmetry checks (separate table and figure; all exactly 0 by symmetry):
+  parity  x -> -x:            <x> = 0, <x^3> = 0  (<p> = 0 shown but trivial)
+  time translation t -> t+k:  every slice has the same <x_t^2>; summary numbers:
+                              <x^2> first half - second half of the slices,
+                              <x^2> even - odd slices (would catch a checkerboard bug)
+  time reversal t -> -t:      forward vs backward correlator from the same origins,
+                              <x_t x_{t+j}> - <x_t x_{t-j}>, origins t = 0..N/2-1.
+                              (Averaged over ALL origins this is 0 for every path, so
+                              it would test nothing; a fixed set of origins can fail.)
+  plus the origin-averaged correlator C(j) vs the exact lattice correlator
 """
 import numpy as np
 import matplotlib.pyplot as plt
 from sho_mcmc import metropolis, emcee_sampler, coefficients, binning_error
-from tqdm import tqdm
+
 
 # ---------------- exact results ----------------
 def exact_correlator(N, a, m, w):
@@ -43,6 +55,8 @@ def exact_values(N, a, m, w):
     lattice = {"x": 0.0, "p": 0.0, "V": V, "T_prim": T_prim, "E_prim": T_prim + V, "E_vir": 2 * V}
     continuum = {"x": 0.0, "p": 0.0, "V": w / 4 * coth, "T_prim": w / 4 * coth,
                  "E_prim": w / 2 * coth, "E_vir": w / 2 * coth}
+    for k in ("x3", "tt_half", "tt_parity", "tr"):
+        lattice[k] = continuum[k] = 0.0
     return lattice, continuum
 
 
@@ -51,8 +65,10 @@ def exact_values(N, a, m, w):
 def measure(chain, a, m, w):
     """Each observable for every stored path (averaged over time slices).
     Shape (n_sweeps,) for metropolis, (n_rows, n_walkers) for emcee."""
+    N = chain.shape[-1]
     dx = np.roll(chain, -1, axis=-1) - chain
-    x2 = np.mean(chain**2, axis=-1)
+    sq = chain**2
+    x2 = np.mean(sq, axis=-1)
     V = 0.5 * m * w**2 * x2
     T_prim = 1 / (2 * a) - m * np.mean(dx**2, axis=-1) / (2 * a**2)
     return {
@@ -63,22 +79,88 @@ def measure(chain, a, m, w):
         "E_prim": T_prim + V,
         "E_vir": 2 * V,                                 # virial: <T> = 1/2 <x V'(x)> = <V>
         "x2": x2,
+        # symmetry checks (exactly 0 by symmetry)
+        "x3": np.mean(chain**3, axis=-1),                                       # parity
+        "tt_half": sq[..., : N // 2].mean(-1) - sq[..., N // 2:].mean(-1),      # translation
+        "tt_parity": sq[..., 0::2].mean(-1) - sq[..., 1::2].mean(-1),           # translation
+        "D_j": (D := reversal_differences(chain)),
+        "tr": D.mean(-1),                                                       # reversal
     }
+
+
+def reversal_differences(chain):
+    """
+    Time reversal: D(j) = <x_t x_{t+j}> - <x_t x_{t-j}> over the fixed origins
+    t = 0..N/2-1, for j = 1..N/2-1. One value per stored path and j: shape (..., N/2-1).
+    """
+    N = chain.shape[-1]
+    T = np.arange(N // 2)
+    x0 = chain[..., T]
+    D = [np.mean(x0 * chain[..., j:j + N // 2], -1) - np.mean(x0 * chain[..., (T - j) % N], -1)
+         for j in range(1, N // 2)]
+    return np.stack(D, axis=-1)
+
+
+def symmetry_profiles(chain, D):
+    """Per-slice <x_t^2>, origin-averaged correlator C(j), and reversal D(j), each with
+    error bars from mean_and_error (binning for Metropolis, walker spread for emcee)."""
+    N = chain.shape[-1]
+    f = np.fft.rfft(chain, axis=-1)
+    C = np.fft.irfft(f * np.conj(f), n=N, axis=-1) / N          # (1/N) sum_t x_t x_{t+j}
+    sq = chain**2
+
+    def per_index(arr):
+        out = np.array([mean_and_error(arr[..., i])[:2] for i in range(arr.shape[-1])])
+        return out[:, 0], out[:, 1]
+
+    return {"x2_t": per_index(sq), "C": per_index(C[..., : N // 2 + 1]), "D": per_index(D)}
+
+
+def _time_series_error(y):
+    """
+    Two independent error estimates for the mean of a correlated 1-D series:
+      binning: average of the block errors over the plateau region (block size >= 10 tau,
+               with >= 32 blocks), which is far less noisy than the last block alone;
+      tau:     sqrt(2 tau_int var / n), from the autocorrelation function.
+    Returns (err_bin or None if no plateau region, err_tau, tau).
+    """
+    _, tau, _ = autocorrelation(y)
+    err_tau = np.sqrt(2 * tau * y.var(ddof=1) / len(y))
+    sizes, errs, _ = binning_error(y)
+    plateau = errs[sizes >= 10 * tau]
+    return (plateau.mean() if len(plateau) else None), err_tau, tau
 
 
 def mean_and_error(series):
     """
-    Metropolis (1-D series): binning error; flag says whether the binning curve plateaued.
-    emcee (rows x walkers): each walker's time average is one estimate; error = spread of
-    those / sqrt(n_walkers). Valid when the run is many autocorrelation times long and
-    walkers are close to independent (true for large ensembles).
+    Returns (mean, err, flag). The error is the LARGER of the available estimates.
+
+    Metropolis (1-D series): binning (plateau average) and autocorrelation estimates.
+      flag "yes": the binning curve reaches a plateau and the two estimates agree within 30%.
+      flag "NO":  no plateau region (run shorter than ~320 tau) or the estimates disagree;
+                  run longer.
+    emcee (rows x walkers): spread of the walkers' time averages / sqrt(n_walkers), and
+      binning + autocorrelation of the walker-averaged series over time. The time-based
+      estimate also captures correlations BETWEEN walkers, which the spread misses.
+      flag says which estimate set the error: "walkers" or "time".
     """
     if series.ndim == 1:
-        sizes, errs, errs_err = binning_error(series)
-        plateau = abs(errs[-1] - errs[-2]) < np.hypot(errs_err[-1], errs_err[-2])
-        return series.mean(), errs[-1], "yes" if plateau else "NO"
+        if series.var() < 1e-30:                        # constant series, e.g. <p>
+            return series.mean(), 0.0, "yes"
+        err_bin, err_tau, _ = _time_series_error(series)
+        if err_bin is None:
+            return series.mean(), err_tau, "NO"
+        agree = abs(err_bin - err_tau) < 0.3 * max(err_bin, err_tau)
+        return series.mean(), max(err_bin, err_tau), "yes" if agree else "NO"
+
     walker_means = series.mean(axis=0)
-    return series.mean(), walker_means.std(ddof=1) / np.sqrt(len(walker_means)), "walkers"
+    err_walk = walker_means.std(ddof=1) / np.sqrt(len(walker_means))
+    y = series.mean(axis=1)                             # ensemble average per stored step
+    if y.var() < 1e-30:
+        return series.mean(), 0.0, "walkers"
+    err_bin, err_tau, _ = _time_series_error(y)
+    err_time = max(err_tau, err_bin or 0.0)
+    return series.mean(), max(err_walk, err_time), "walkers" if err_walk >= err_time else "time"
 
 
 def autocorrelation(series, c=6.0):
@@ -100,10 +182,15 @@ def autocorrelation(series, c=6.0):
 
 
 # ---------------- analysis of one sampler ----------------
-NAMES = {"x": "<x>", "p": "<p>", "V": "<V>", "T_prim": "<T> primitive",
-         "E_prim": "<E> primitive", "E_vir": "<E> virial"}
-LABELS = {"x": r"$\langle x\rangle$", "V": r"$\langle V\rangle$", "T_prim": r"$\langle T\rangle_{prim}$",
+NAMES = {"V": "<V>", "T_prim": "<T> primitive", "E_prim": "<E> primitive", "E_vir": "<E> virial"}
+SYM_NAMES = {"x": "<x>", "x3": "<x^3>", "p": "<p>", "tt_half": "x^2 half1-half2",
+             "tt_parity": "x^2 even-odd", "tr": "corr fwd-bwd"}
+LABELS = {"V": r"$\langle V\rangle$", "T_prim": r"$\langle T\rangle_{prim}$",
           "E_prim": r"$\langle E\rangle_{prim}$", "E_vir": r"$\langle E\rangle_{vir}$"}
+SYM_LABELS = {"x": r"$\langle x\rangle$", "x3": r"$\langle x^3\rangle$",
+              "tt_half": r"$x^2$: 1st − 2nd half", "tt_parity": r"$x^2$: even − odd",
+              "tr": "corr: fwd − bwd"}
+DIST_LABELS = {"x": SYM_LABELS["x"], **LABELS}
 
 
 def analyze(chain, acc_rate, burn, thin, a, m, w):
@@ -117,7 +204,7 @@ def analyze(chain, acc_rate, burn, thin, a, m, w):
     obs = measure(kept, a, m, w)
     is_mh = kept.ndim == 2
     rho, tau, W = autocorrelation(obs["x2"])
-    results = {k: mean_and_error(obs[k]) for k in NAMES}      # (mean, err, flag)
+    results = {k: mean_and_error(obs[k]) for k in {**NAMES, **SYM_NAMES}}  # (mean, err, flag)
     vir = obs["T_prim"] - obs["V"]
     return {
         "kept": kept, "obs": obs, "results": results, "acc": acc_rate, "thin": thin,
@@ -127,6 +214,7 @@ def analyze(chain, acc_rate, burn, thin, a, m, w):
         "n_eff": obs["x2"].size / (2 * tau),
         "run_in_tau": len(kept) / tau,
         "virial": (vir.mean(), mean_and_error(vir)[1]),
+        "profiles": symmetry_profiles(kept, obs["D_j"]),
     }
 
 
@@ -139,40 +227,32 @@ def print_report(runs, N, a, m, w):
         used = f"{len(r['kept']) * r['thin']} {r['unit']}"
         if not r["is_mh"]:
             used += f" x {r['walkers']} walkers"
-        err_from = "binning" if r["is_mh"] else "spread between walkers"
+        err_from = ("max(binning, autocorrelation)" if r["is_mh"]
+                    else "max(walker spread, time binning/autocorrelation)")
         print(f"  {nm:11s} acc={r['acc']:.3f}  used={used}  "
               f"tau_int(x^2)={r['tau'] * r['thin']:.1f} {r['unit']}  "
               f"~{r['n_eff']:.0f} independent samples  errors: {err_from}")
 
-    cell = 26
-    head = f"\n{'observable':14s}" + "".join(f"{nm:>{cell}s}" for nm in names)
-    head += f"{'lattice':>10s}{'continuum':>11s}"
-    if len(names) == 2:
-        head += f"{names[1][:5]}-{names[0][:4]}".rjust(14)
-    print(head)
-    no_plateau = False
-    for k, label in NAMES.items():
-        row = f"{label:14s}"
-        for nm in names:
-            mean, err, flag = runs[nm]["results"][k]
-            if err < 1e-12:
-                txt = f"{mean:+.4f} (trivial)"
-            else:
-                txt = f"{mean:.4f}±{err:.4f} {(mean - lattice[k]) / err:+.1f}σ"
-                if flag == "NO":
-                    txt += "!"
-                    no_plateau = True
-            row += f"{txt:>{cell}s}"
-        row += f"{lattice[k]:10.4f}{continuum[k]:11.4f}"
-        if len(names) == 2:
-            (ma, ea, _), (mb, eb, _) = (runs[nm]["results"][k] for nm in names)
-            de = np.hypot(ea, eb)
-            row += f"{'—' if de < 1e-12 else f'{(mb - ma) / de:+.1f}σ':>14s}"
-        print(row)
-    print("  σ columns: (MC - exact lattice) / err" +
+    no_plateau = _print_table("Physics", NAMES, runs, lattice, continuum)
+    no_plateau |= _print_table("Symmetry checks (all exactly 0)", SYM_NAMES, runs, lattice,
+                               continuum)
+    names = list(runs)
+    print("  σ columns: (MC - exact) / err" +
           (f"; last column: ({names[1]} - {names[0]}) / combined err" if len(names) == 2 else ""))
     if no_plateau:
-        print("  ! binning did not plateau: that error bar is too small; run longer")
+        print("  ! binning and autocorrelation errors disagree, or no plateau: "
+              "treat that error bar with caution; run longer")
+
+    lattice_C = exact_correlator(N, a, m, w)
+    for nm, r in runs.items():
+        m2, e2 = r["profiles"]["x2_t"]
+        mc, ec = r["profiles"]["C"]
+        md, ed = r["profiles"]["D"]
+        out_t = np.sum(np.abs((m2 - lattice_C[0]) / e2) > 2)
+        out_c = np.sum(np.abs((mc - lattice_C[: len(mc)]) / ec) > 2)
+        out_d = np.sum(np.abs(md / ed) > 2)
+        print(f"  {nm:11s} beyond 2σ: <x_t^2> {out_t}/{N} slices, C(j) {out_c}/{len(mc)}, "
+              f"fwd-bwd {out_d}/{len(md)}  (expect ~5%; neighbours are correlated)")
 
     print(f"\nvirial check <T_prim> - <V>   (exact lattice "
           f"{lattice['T_prim'] - lattice['V']:+.4f}, continuum 0)")
@@ -187,6 +267,36 @@ def print_report(runs, N, a, m, w):
                   "(want >= 50); walker-spread errors may be unreliable")
 
 
+def _print_table(title, names_dict, runs, lattice, continuum):
+    names = list(runs)
+    cell, lw = 26, 17
+    head = f"\n{title}\n{'observable':{lw}s}" + "".join(f"{nm:>{cell}s}" for nm in names)
+    head += f"{'lattice':>10s}{'continuum':>11s}"
+    if len(names) == 2:
+        head += f"{names[1][:5]}-{names[0][:4]}".rjust(14)
+    print(head)
+    no_plateau = False
+    for k, label in names_dict.items():
+        row = f"{label:{lw}s}"
+        for nm in names:
+            mean, err, flag = runs[nm]["results"][k]
+            if err < 1e-12:
+                txt = f"{mean:+.4f} (trivial)"
+            else:
+                txt = f"{mean:+.4f}±{err:.4f} {(mean - lattice[k]) / err:+.1f}σ"
+                if flag == "NO":
+                    txt += "!"
+                    no_plateau = True
+            row += f"{txt:>{cell}s}"
+        row += f"{lattice[k]:10.4f}{continuum[k]:11.4f}"
+        if len(names) == 2:
+            (ma, ea, _), (mb, eb, _) = (runs[nm]["results"][k] for nm in names)
+            de = np.hypot(ea, eb)
+            row += f"{'—' if de < 1e-12 else f'{(mb - ma) / de:+.1f}σ':>14s}"
+        print(row)
+    return no_plateau
+
+
 # ---------------- combined figures ----------------
 def _pull_axes(ax, title, xlabel):
     ax.axvspan(-2, 2, color="0.5", alpha=0.12, label=r"$\pm 2\sigma$")
@@ -195,7 +305,7 @@ def _pull_axes(ax, title, xlabel):
     ax.set(title=title, xlabel=xlabel)
 
 
-def plot_comparison(runs, N, a, m, w, title=""):
+def plot_comparison(runs, N, a, m, w, title="", labels=None, show_continuum=True):
     """
     Mirrors the table. With two samplers (hand-written first, emcee second):
       top left:     hand-written - exact lattice      (should sit on 0)
@@ -206,7 +316,8 @@ def plot_comparison(runs, N, a, m, w, title=""):
     With one sampler: its difference from lattice, and its pull.
     """
     lattice, continuum = exact_values(N, a, m, w)
-    keys, names = list(LABELS), list(runs)
+    labels = LABELS if labels is None else labels
+    keys, names = list(labels), list(runs)
     y = np.arange(len(keys))
     gap = np.array([continuum[k] - lattice[k] for k in keys])
 
@@ -218,7 +329,7 @@ def plot_comparison(runs, N, a, m, w, title=""):
     for i, nm in enumerate(names):
         mean, err = vals(nm)
         lat = np.array([lattice[k] for k in keys])
-        panels.append((f"{nm} − exact lattice", mean - lat, err, f"C{i}", True))
+        panels.append((f"{nm} − exact lattice", mean - lat, err, f"C{i}", show_continuum))
     if len(names) == 2:
         (ma, ea), (mb, eb) = vals(names[0]), vals(names[1])
         panels.append((f"{names[1]} − {names[0]}", mb - ma, np.hypot(ea, eb), "C4", False))
@@ -233,7 +344,7 @@ def plot_comparison(runs, N, a, m, w, title=""):
         axi.errorbar(diff, y, xerr=err, fmt="o", capsize=4, color=col, label="difference ± err")
         if show_cont:
             axi.plot(gap, y, "s", mfc="none", color="C3", label="continuum − lattice")
-        axi.set(yticks=y, yticklabels=[LABELS[k] for k in keys], title=ttl, xlabel="difference")
+        axi.set(yticks=y, yticklabels=[labels[k] for k in keys], title=ttl, xlabel="difference")
         axi.legend(fontsize=8)
 
     pax = ax[len(panels)]
@@ -244,7 +355,7 @@ def plot_comparison(runs, N, a, m, w, title=""):
         pull = diff / err
         pax.plot(pull, y + o, "D" if col == "C4" else "o", color=col, label=ttl)
         lim = max(lim, np.abs(pull).max() + 0.5)
-    pax.set(xlim=(-lim, lim), yticks=y, yticklabels=[LABELS[k] for k in keys])
+    pax.set(xlim=(-lim, lim), yticks=y, yticklabels=[labels[k] for k in keys])
     pax.legend(fontsize=8)
     for axi in ax[len(panels) + 1:]:
         axi.axis("off")
@@ -260,13 +371,13 @@ def plot_distributions(runs, N, a, m, w, title=""):
     """
     lattice, _ = exact_values(N, a, m, w)
     fig, ax = plt.subplots(2, 3, figsize=(13, 7), constrained_layout=True)
-    for axi, k in zip(ax.flat, LABELS):
+    for axi, k in zip(ax.flat, DIST_LABELS):
         for i, (nm, r) in enumerate(runs.items()):
             v = r["obs"][k].ravel()
             axi.hist(v, bins=60, density=True, histtype="step", lw=1.5, color=f"C{i}", label=nm)
             axi.axvline(v.mean(), color=f"C{i}", ls="--", lw=1)
         axi.axvline(lattice[k], color="k", lw=1.5, label="exact lattice")
-        axi.set(title=LABELS[k] + " per path (dashed: MC mean)", xlabel="value", ylabel="density")
+        axi.set(title=DIST_LABELS[k] + " per path (dashed: MC mean)", xlabel="value", ylabel="density")
         axi.legend(fontsize=7)
 
     x2 = 2 * lattice["V"] / (m * w**2)                 # exact lattice <x^2>
@@ -306,6 +417,42 @@ def plot_autocorrelation(runs, title=""):
     return fig
 
 
+def plot_symmetries(runs, N, a, m, w, title=""):
+    """
+    Translation: <x_t^2> for every slice t (should be flat at the exact value).
+    Correlator: origin-averaged C(j) vs the exact lattice correlator.
+    Reversal: <x_t x_{t+j}> - <x_t x_{t-j}> over origins t = 0..N/2-1 (should be 0).
+    """
+    C_exact = exact_correlator(N, a, m, w)
+    fig, ax = plt.subplots(1, 3, figsize=(16, 4.3), constrained_layout=True)
+    for i, (nm, r) in enumerate(runs.items()):
+        pr, col = r["profiles"], f"C{i}"
+        m2, e2 = pr["x2_t"]
+        t = np.arange(len(m2))
+        ax[0].fill_between(t, m2 - e2, m2 + e2, color=col, alpha=0.3)
+        ax[0].plot(t, m2, color=col, lw=1, label=f"{nm} ± err")
+        mc, ec = pr["C"]
+        j = np.arange(len(mc))
+        ax[1].errorbar(j + 0.15 * i, mc, yerr=ec, fmt="o", ms=3, capsize=2, color=col, label=nm)
+        md, ed = pr["D"]
+        jd = np.arange(1, len(md) + 1)
+        ax[2].errorbar(jd + 0.15 * i, md, yerr=ed, fmt="o", ms=3, capsize=2, color=col, label=nm)
+    ax[0].axhline(C_exact[0], color="k", lw=1.5, label="exact lattice")
+    ax[0].set(title=r"Time translation: $\langle x_t^2\rangle$ per slice", xlabel="time slice $t$",
+              ylabel=r"$\langle x_t^2\rangle$")
+    jj = np.arange(N // 2 + 1)
+    ax[1].plot(jj, C_exact[jj], "k", lw=1.5, label="exact lattice")
+    ax[1].set(title=r"Correlator $C(j)=\langle x_t x_{t+j}\rangle$", xlabel="separation $j$",
+              ylabel="$C(j)$")
+    ax[2].axhline(0, color="k", lw=1.5, label="exact (0)")
+    ax[2].set(title=r"Time reversal: $\langle x_t x_{t+j}\rangle - \langle x_t x_{t-j}\rangle$",
+              xlabel="separation $j$", ylabel="forward − backward")
+    for axi in ax:
+        axi.legend(fontsize=8)
+    fig.suptitle(title)
+    return fig
+
+
 def verify(runs, N, a, m, w, save=None):
     """
     runs: {name: (chain, acc_rate, burn, thin)} for one or more samplers, e.g.
@@ -318,6 +465,10 @@ def verify(runs, N, a, m, w, save=None):
     print_report(analyses, N, a, m, w)
     title = f"{' vs '.join(analyses)}: N={N}, a={a}, m={m}, w={w}"
     figs = {"comparison": plot_comparison(analyses, N, a, m, w, title),
+            "symmetry_pulls": plot_comparison(analyses, N, a, m, w,
+                                              "Symmetry checks — " + title, SYM_LABELS,
+                                              show_continuum=False),
+            "symmetries": plot_symmetries(analyses, N, a, m, w, title),
             "distributions": plot_distributions(analyses, N, a, m, w, title),
             "autocorr": plot_autocorrelation(analyses, title)}
     if save:
@@ -360,7 +511,7 @@ if __name__ == "__main__":
     verify(runs, N, a, m, w, save=save)
     if not save:
         plt.show()
-
+        
 r'''
 MC = the simulation's estimate
 \pm err = 1\sigma error bar from binning
