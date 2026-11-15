@@ -1,9 +1,10 @@
 """
-Command-line entry point ``sho-mcmc``: run the Metropolis simulation.
+Command-line entry point ``sho-mcmc``: run the simulation and the physics checks.
 
-Example::
+Examples::
 
     sho-mcmc --N 64 --a 0.25 --sweeps 50000 --burn 5000 --seed 1 --out run1
+    sho-mcmc --N 64 --a 0.25 --seed 1 --emcee --out run1   # also emcee (slow)
 """
 
 import argparse
@@ -34,7 +35,7 @@ def parse_args(argv=None):
     p = argparse.ArgumentParser(
         prog="sho-mcmc",
         description="Metropolis sampling of the harmonic oscillator path integral "
-        "on a periodic time lattice.",
+        "on a periodic time lattice, with emcee as an optional reference.",
     )
     p.add_argument("--N", type=int, default=64, help="time slices, even (default 64)")
     p.add_argument("--a", type=float, default=0.25, help="lattice spacing (0.25)")
@@ -46,6 +47,20 @@ def parse_args(argv=None):
     p.add_argument("--x0", type=float, default=0.0, help="starting value of all x_t")
     p.add_argument("--seed", type=int, default=None, help="random seed (default: new)")
     p.add_argument("--thin", type=int, default=10, help="thinning for the histogram")
+    p.add_argument(
+        "--emcee", action="store_true", help="also run emcee as a reference (slow)"
+    )
+    p.add_argument("--walkers", type=int, default=None, help="emcee walkers (2N)")
+    p.add_argument("--steps", type=int, default=100_000, help="emcee steps (100000)")
+    p.add_argument(
+        "--emcee-thin", type=int, default=50, help="emcee: keep every n-th step (50)"
+    )
+    p.add_argument(
+        "--emcee-burn", type=int, default=20_000, help="emcee burn-in steps (20000)"
+    )
+    p.add_argument(
+        "--x0-spread", type=float, default=0.1, help="emcee start spread (0.1)"
+    )
     p.add_argument("--out", default=None, help="prefix for saved figures and results")
     p.add_argument("--no-show", action="store_true", help="do not open plot windows")
     return p.parse_args(argv)
@@ -53,7 +68,7 @@ def parse_args(argv=None):
 
 def main(argv=None):
     """
-    Run the simulation, print the checks against exact results, and plot.
+    Run the samplers, print the checks against exact results, and plot.
 
     Parameters
     ----------
@@ -77,16 +92,36 @@ def main(argv=None):
     plot_diagnostics(
         chain, args.a, args.m, args.w, args.burn, args.thin, filename=diag_file
     )
+
+    runs = {"Metropolis": (chain, acc, args.burn, 1)}
+    if args.emcee:
+        from .ensemble import emcee_sampler  # emcee is only needed for --emcee
+
+        walkers = args.walkers or 2 * args.N
+        chain_e, acc_e = emcee_sampler(
+            *params,
+            walkers,
+            args.steps,
+            args.emcee_thin,
+            args.x0,
+            args.x0_spread,
+            args.seed,
+        )
+        burn_rows = args.emcee_burn // args.emcee_thin
+        runs["emcee"] = (chain_e, acc_e, burn_rows, args.emcee_thin)
     print()
-    results = verify(chain, acc, *params, args.burn, save=out)
+    results = verify(runs, *params, save=out)
 
     if out:
-        observables = {k: {"mean": v[0], "err": v[1]} for k, v in results.items()}
+        tables = {
+            name: {k: {"mean": v[0], "err": v[1], "flag": v[2]} for k, v in res.items()}
+            for name, res in results.items()
+        }
         record = {
             "settings": vars(args),
             "acceptance": acc,
             "x2": {"mc": mc, "err": err, "lattice": lat, "continuum": cont},
-            "observables": observables,
+            "results": tables,
         }
         with open(f"{out}_results.json", "w") as f:
             json.dump(record, f, indent=2)

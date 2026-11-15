@@ -13,8 +13,9 @@ authors = [
     { name = "Alexandra VonHaven" },
     { name = "Kevin Geumhan" },
 ]
-dependencies = ["numpy", "scipy", "matplotlib"]
+dependencies = ["numpy", "scipy", "matplotlib", "emcee", "tqdm"]
 
 [project.scripts]
 sho-mcmc = "sho_mcmc.main:main"
 sho-mcmc-inject = "sho_mcmc.injection:main"
+sho-mcmc-validate = "sho_mcmc.validate:main"

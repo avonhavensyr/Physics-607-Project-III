@@ -19,6 +19,9 @@ written out here from the lattice action instead of being taken from
 Pass (limits from the validation plan): |recovered - injected| <= 3.5 error
 bars for both m and w, and fit p-value > 0.001.
 
+Negative control: one more run is sampled with w = 1.1 but compared with
+w = 1. The test must flag it; otherwise it is too weak to be useful.
+
 Run with ``sho-mcmc-inject`` (options: ``sho-mcmc-inject --help``).
 """
 
@@ -248,7 +251,7 @@ def run_case(N, a, m, w, sweeps, burn, delta, n_blocks, seed):
         Settings, recovered values, errors, pulls, fit quality and pass/fail.
     """
     check_model(N, a, m, w)
-    chain, acc = metropolis(N, a, m, w, sweeps, delta, 0.0, seed)
+    chain, acc = metropolis(N, a, m, w, sweeps, delta, 0.0, seed, progress=False)
     C = correlator_per_sweep(chain[burn:])
     del chain
     C_mean = C.mean(axis=0)
@@ -451,11 +454,29 @@ def main(argv=None):
             )
             results.append(r)
     print_table(results)
+
+    # negative control: sample with w = 1.1 but compare with w = 1; must be caught
+    settings = (args.sweeps, args.burn, args.delta, args.blocks)
+    bad = run_case(32, 0.5, 1.0, 1.1, *settings, args.seed + 999)
+    z_bad = (bad["w_rec"] - 1.0) / bad["w_err"]
+    caught = bool(abs(z_bad) > Z_MAX)
+    verdict = "caught, as it should be" if caught else "NOT caught: test too weak"
+    print(
+        "negative control: sampled with w = 1.1, compared with w = 1.0: "
+        f"pull {z_bad:+.1f}σ -> {verdict}"
+    )
+    negative = {"w_sampled": 1.1, "w_compared": 1.0, "pull": z_bad, "caught": caught}
+
     title = f"Injection test, seed {args.seed}"
     fig = plot_results(results[: len(CASES)], title=title)
     if args.out:
         fig.savefig(f"{args.out}.png", dpi=130)
-        out = {"settings": vars(args), "cases": CASES, "results": results}
+        out = {
+            "settings": vars(args),
+            "cases": CASES,
+            "results": results,
+            "negative_control": negative,
+        }
         with open(f"{args.out}.json", "w") as f:
             json.dump(out, f, indent=1)
     if not args.no_show:

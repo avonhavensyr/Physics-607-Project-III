@@ -7,16 +7,22 @@ lattice
     Lattice action and exact results.
 metropolis
     Hand-written checkerboard Metropolis sampler.
+ensemble
+    emcee on the same target, the reference sampler (needs emcee).
 diagnostics
     Error bars (binning) and autocorrelation times.
+chains
+    Several chains, error bars and z-scores.
 plots
     Summary and diagnostic figures.
 verify
-    Physics checks against exact lattice and continuum values.
-injection
-    Injection-recovery test (validation plan, Test 10).
+    Physics and symmetry checks, Metropolis against emcee.
 main
     Command-line entry point ``sho-mcmc``.
+symmetries, tuning, injection, walkers
+    Tests 6, 8, 10 and 11 of the validation plan.
+validate
+    Command-line entry point ``sho-mcmc-validate``.
 """
 
 from .diagnostics import autocorrelation, binning_error
