@@ -48,4 +48,3 @@ This writes everything into `results/` (about 5 minutes).
     scripts/run_all.sh      reproduces everything in results/
     results/                outputs of the runs used in the report
     Validation*.tex/.pdf    the validation plan: original and revisions
-    AI_USE.md               log of every use of AI
