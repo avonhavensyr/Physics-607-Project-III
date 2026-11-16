@@ -149,8 +149,14 @@ We will add this plan to our Git repository before we start coding, so the Git h
 If a test fails or is not useful, we will update the plan in a new commit and keep the old version in the history. The commit message and the report will explain what changed and why. 
 
 \section{Validation Plan Revisions}
-\fillin{Alex: detail validation plan history based on txt files following 1.1 and git version history.}
+The following revisions are documented based on the update history of the main branch. 
 
+\subsection{11/13/2026: Initial Multi-Walker Test} 
+The new test runs a specified number of walkers and determines how long each walker stays in the intervals $[-\infty, -1]$, $[-\frac12,\frac12]$, $[\frac12, 1]$, and $[1, \infty]$. 
+The code assumes a burn-in period of 1000 iterations and calculates the fraction of the total post-burn-in iterations each walker was within each of these given intervals. 
+The main plot used to test for non-convergence plots the fraction of time spent in each region for the walkers over the expected values based on the lattice produced by the \texttt{exact_correlator} function in \texttt{verify_sho.py} as well as the analytical continuum value for the quantum harmonic oscillator.
+
+11/14/2026: Multi-Walker test modified-- the test now states a specific time interval, number
 
 \begin{thebibliography}{9}
 \bibitem{emcee} D. Foreman-Mackey, D. W. Hogg, D. Lang and J. Goodman, ``emcee: The MCMC Hammer,'' PASP \textbf{125}, 306 (2013).
