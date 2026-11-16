@@ -94,7 +94,7 @@ def verify_walkers(chains, accs, x0s, regions, N, a, m, w, burn, save=None):
     print(f"N={N} a={a} m={m} w={w} beta={N * a:g}  K={K} walkers  "
           f"sweeps used={chains.shape[1] - 1 - burn} each  "
           f"acc={accs.mean():.3f} (range {accs.min():.3f}-{accs.max():.3f})")
-    print(f"{'observable':18s} {'MC (pooled)':>11s} {'± err':>8s} {'lattice':>9s} {'dev':>7s} "
+    print(f"{'observable':18s} {'Mean':>11s} {'± err':>8s} {'lattice':>9s} {'dev':>7s} "
           f"{'continuum':>10s} {'chi2/K':>7s} {'in 2σ':>6s} {'R-hat':>7s} {'scatter/err':>11s}")
 
     results = {}
@@ -107,7 +107,7 @@ def verify_walkers(chains, accs, x0s, regions, N, a, m, w, burn, save=None):
         in2 = np.mean(np.abs(pulls) < 2)
         rhat = gelman_rubin(series)
         scatter = means.std(ddof=1) / np.sqrt(np.mean(errs**2))
-        # pooled estimate: walkers are independent, so errors add in quadrature
+        # mean of all walkers: walkers are independent, so errors add in quadrature
         pooled, pooled_err = means.mean(), np.sqrt(np.sum(errs**2)) / K
         dev = (pooled - lattice[k]) / pooled_err
         print(f"{name(k):18s} {pooled:11.4f} {pooled_err:8.4f} {lattice[k]:9.4f} {dev:+6.1f}σ "
@@ -209,7 +209,7 @@ def plot_pulls(results, keys, title=""):
 
 
 def plot_regions(results, regions, lattice, continuum, title=""):
-    """Fraction of time in each region: every walker, pooled, exact lattice, continuum."""
+    """Fraction of time in each region: every walker, their mean, exact lattice, continuum."""
     fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
     for j, r in enumerate(regions):
         res = results[r]
@@ -217,7 +217,7 @@ def plot_regions(results, regions, lattice, continuum, title=""):
         ax.errorbar(j + np.linspace(-0.25, 0.05, K), res["means"], yerr=res["errs"],
                     fmt="o", ms=3, color="C0", alpha=0.7, label="walkers" if j == 0 else None)
         ax.errorbar(j + 0.15, *res["pooled"], fmt="D", color="C1", capsize=4,
-                    label="pooled" if j == 0 else None)
+                    label="Mean" if j == 0 else None)
         ax.hlines(lattice[r], j - 0.35, j + 0.35, color="k", label="exact lattice" if j == 0 else None)
         ax.hlines(continuum[r], j - 0.35, j + 0.35, color="C3", ls="--",
                   label="continuum" if j == 0 else None)
@@ -242,7 +242,7 @@ if __name__ == "__main__":
     save = None          # or a prefix like "alex1" -> alex1_traces.png, alex1_pulls.png, ...
 
     # regions [lo, hi] in x; use np.inf for an open-ended tail
-    regions = [(-0.5, 0.5), (0.5, 1.0), (1.0, np.inf), (-np.inf, -1.0)]
+    regions = [(-0.5, 0.5), (-1.0, -0.5), (0.5, 1.0), (1.0, np.inf), (-np.inf, -1.0)]
 
     chains, accs, x0s = run_walkers(K, N, a, m, w, sweeps, delta, x0_spread, seed)
     verify_walkers(chains, accs, x0s, regions, N, a, m, w, burn, save=save)
