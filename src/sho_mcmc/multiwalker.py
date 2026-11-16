@@ -242,7 +242,7 @@ if __name__ == "__main__":
     save = None          # or a prefix like "alex1" -> alex1_traces.png, alex1_pulls.png, ...
 
     # regions [lo, hi] in x; use np.inf for an open-ended tail
-    regions = [(-0.5, 0.5), (-1.0, -0.5), (0.5, 1.0), (1.0, np.inf), (-np.inf, -1.0)]
+    regions = [(-np.inf, -1.0), (-1.0, -0.5), (-0.5, 0.5), (0.5, 1.0), (1.0, np.inf)]
 
     chains, accs, x0s = run_walkers(K, N, a, m, w, sweeps, delta, x0_spread, seed)
     verify_walkers(chains, accs, x0s, regions, N, a, m, w, burn, save=save)
