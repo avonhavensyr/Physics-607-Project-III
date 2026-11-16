@@ -238,8 +238,8 @@ if __name__ == "__main__":
     delta = 1
     x0_spread = 3.0      # walkers start at x0 evenly spaced in [-x0_spread, x0_spread]
     burn = 1000
-    seed = None
-    save = None          # or a prefix like "alex1" -> alex1_traces.png, alex1_pulls.png, ...
+    seed = 2026
+    save = None
 
     # regions [lo, hi] in x; use np.inf for an open-ended tail
     regions = [(-np.inf, -1.0), (-1.0, -0.5), (-0.5, 0.5), (0.5, 1.0), (1.0, np.inf)]
