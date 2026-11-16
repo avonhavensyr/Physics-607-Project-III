@@ -154,7 +154,17 @@ The following revisions are documented based on the update history of the main b
 \subsection{11/13/2026: Initial Multi-Walker Test} 
 The new test runs a specified number of walkers and determines how long each walker stays in the intervals $[-\infty, -1]$, $[-\frac12,\frac12]$, $[\frac12, 1]$, and $[1, \infty]$. 
 The code assumes a burn-in period of 1000 iterations and calculates the fraction of the total post-burn-in iterations each walker was within each of these given intervals. 
-The main plot used to test for non-convergence plots the fraction of time spent in each region for the walkers over the expected values based on the lattice produced by the \texttt{exact_correlator} function in \texttt{verify_sho.py} as well as the analytical continuum value for the quantum harmonic oscillator.
+The main plot shows the fraction of time spent in each region for the walkers over the expected values based on the lattice produced by the \texttt{exact_correlator} function in \texttt{verify_sho.py} as well as the analytical continuum value for the quantum harmonic oscillator.
+We included an additional plot showing how well the walkers agree with one another more directly by plotting the standard deviation. The plot highlights where the standard deviation is for the whole set.
+
+\subsection{11/14/2026: Revised Periodic Lattice Test}
+check test 6
+
+\subsection{11/14/2026: Second Multi-Walker Test}
+
+\subsection{11/15/2026: Revised Test 10}
+
+\subsection{}
 
 11/14/2026: Multi-Walker test modified-- the test now states a specific time interval, number
 
