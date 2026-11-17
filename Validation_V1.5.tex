@@ -19,14 +19,15 @@ The objective of this project is to sample the path integral of the quantum harm
 
 The primary goal is to determine whether the Metropolis code samples the correct distribution. The harmonic oscillator is selected for validation because its lattice distribution is Gaussian, which allows for direct comparison with exact analytical results.
 
-\paragraph{Revisions.} Version 1 was prepared prior to any code development and without the use of AI tools. Each subsequent change is recorded as a separate commit in the Git repository, preserving the previous content in the project history. Each commit message documents the specific changes and their rationale.
+\paragraph{Revisions.} Version 1 (November 9) was prepared prior to any code development and without the use of AI tools. Each subsequent change is recorded as a separate commit in the Git repository, preserving the previous content in the project history. Each commit message documents the specific changes and their rationale.
 \begin{itemize}
   \item Version 1.1 (November 14): Test 11, a multi-walker test, was added.
   \item Version 1.2 (November 14): The code now samples a periodic lattice rather than the fixed-endpoint lattice of version 1. Accordingly, Tests 6 and 8 were rewritten to match the code, and Test 11 was made more precise.
   \item Version 1.3 (November 14): Sections 3, 4, 5, and 7 were rewritten for the periodic code, and Test 10 was updated to recover both $m$ and $\omega$ and now includes a negative control.
-  \item Version 1.4 (November 15): Section 2 now describes the periodic lattice used in the code. Tests 1--5, 7, and 9, as well as the \texttt{emcee} paragraph in Section 4, were updated accordingly. Plan was written in a better way so makes more sense and the content of the other sections did not change.
+  \item Version 1.4 (November 15): Section 2 now describes the periodic lattice used in the code. Tests 1--5, 7, and 9, as well as the \texttt{emcee} paragraph in Section 4, were updated accordingly. The wording of the whole plan was also made more formal; the content of the other sections did not change.
   \item Version 1.5 (November 16): Test 12, in which bugs are introduced into the code on purpose, was added, because until then only the negative control of Test 10 had shown that the tests can fail. Section 7 now lists the command for every test.
 \end{itemize}
+The text of the changes in versions 1.2 to 1.5 was drafted with help from Claude (AI), and the formal wording of version 1.4 was made with \fillin{name of the tool, or delete this part if you reworded it yourself}; see \texttt{AI\_USE.md}.
 
 \section{The model}
 The Euclidean action of the oscillator is
@@ -206,7 +207,7 @@ Error bars are obtained by binning each chain and then combining the four chains
 
 \textbf{If it fails.} If \texttt{emcee} has not converged (a run shorter than approximately 50 $\tau_{\text{int}}$ per walker), it is not used to evaluate the sampler. Otherwise, one of the samplers is biased.
 
-\subsection*{Test 10 (revised): Injection test recovering $m$ and $\omega$}
+\subsection*{Test 10 (revised): Injection test --- recovering $m$ and $\omega$}
 \textbf{What changed.} The initial version of this test employed the fixed-endpoint lattice and its energy-gap formula. The current code samples the periodic lattice with the action $S=\sum_t\big[\tfrac{m}{2a}(x_{t+1}-x_t)^2+\tfrac{a m\omega^2}{2}x_t^2\big]$. Accordingly, the test was revised to recover both $m$ and $\omega$, rather than only the energy gap.
 
 \textbf{What we check.} Known values of $m$ and $\omega$ are input into the simulation, and the Metropolis code is used to sample and recover $m$ and $\omega$ from the resulting samples. On the periodic lattice, the correlator is exactly known for $0 \le j \le N$:
@@ -265,7 +266,7 @@ The tests were not converted into \texttt{pytest} files. These tests are statist
 The tests are not executed automatically for each pull request. The author is responsible for running the relevant tests before submitting a pull request, and the reviewer repeats these tests prior to merging. Manual inspection of the trace plots in Test~7 is required.
 
 \section{Workflow}
-We will add this plan to our Git repository prior to beginning development, ensuring that the Git history documents the plan's precedence over the code. Subsequently, all changes including code, tests, and this plan will be submitted via pull requests, and the other team member will provide written review before merging.
+We will add this plan to our Git repository prior to beginning development, ensuring that the Git history documents the plan's precedence over the code. Subsequently, all changes---including code, tests, and this plan---will be submitted via pull requests, and the other team member will provide written review before merging.
 
 If a test fails or is deemed uninformative, we will update the plan in a new commit while retaining the previous version in the repository history. The commit message and the report will detail the nature and rationale for each change.
 
