@@ -19,6 +19,8 @@ verify
     Physics and symmetry checks, Metropolis against emcee.
 main
     Command-line entry point ``sho-mcmc``.
+checks, convergence
+    Tests 1-5 and Test 7 of the validation plan.
 symmetries, tuning, injection, walkers
     Tests 6, 8, 10 and 11 of the validation plan.
 validate

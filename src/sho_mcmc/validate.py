@@ -1,10 +1,10 @@
 """
 Command-line entry point ``sho-mcmc-validate``: run the validation tests.
 
-It runs Tests 6, 8 and 11 of the plan; Test 10 is ``sho-mcmc-inject``. Every
-test prints its numbers and PASS or FAIL. With ``--out run1`` the figures are
-saved and every result is written to ``run1_log.md``, so the report can say
-exactly what each test showed.
+It runs Tests 1-8 and 11 of the plan; Test 9 is ``sho-mcmc --emcee`` and
+Test 10 is ``sho-mcmc-inject``. Every test prints its numbers and PASS or
+FAIL. With ``--out run1`` the figures are saved and every result is written
+to ``run1_log.md``, so the report can say exactly what each test showed.
 
 To add a test, write a function that returns a dict with "test" (its number),
 "name", "passed" (bool), "lines" (list of str to print) and, optionally,
@@ -19,13 +19,13 @@ import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 
-from . import symmetries, tuning, walkers
+from . import checks, convergence, symmetries, tuning, walkers
 from .chains import run_chains
 from .lattice import coefficients
 
 MAIN = (64, 0.25, 1.0, 1.0)  # main lattice (N, a, m, w), plan Section 4
 N_BURN, N_KEEP = 8_000, 40_000  # sweeps per chain, plan Section 4
-DEFAULT_TESTS = [6, 8, 11]
+DEFAULT_TESTS = [1, 2, 3, 4, 5, 6, 7, 8, 11]
 
 
 def parse_args(argv=None):
@@ -119,7 +119,7 @@ def main(argv=None):
 
     main_chains = starts = None
     header = []
-    if 6 in tests:  # Test 6 uses the four main chains of plan Section 4
+    if {5, 6, 7} & set(tests):  # Tests 5-7 use the four main chains (plan Section 4)
         A, _ = coefficients(*MAIN[1:])
         delta = args.Delta / np.sqrt(A)  # the code's step for the plan's Delta
         main_chains, acc, starts = run_chains(*MAIN, N_BURN, N_KEEP, delta, seed + 500)
@@ -132,14 +132,23 @@ def main(argv=None):
         print(header[0])
 
     runners = {
+        1: lambda: checks.test1_action_update(seed=seed + 1),
+        2: lambda: checks.test2_exact_covariance(*MAIN),
+        3: lambda: checks.test3_error_bars(seed=seed + 3),
+        4: lambda: checks.test4_small_lattice(seed=seed + 4),
+        5: lambda: checks.test5_known_answers(main_chains, N_BURN, *MAIN),
         6: lambda: symmetries.test6_symmetries(main_chains, N_BURN, starts, *MAIN),
+        7: lambda: convergence.test7_convergence(main_chains, N_BURN, starts),
         8: lambda: tuning.test8_acceptance(seed=seed + 8),
         11: lambda: walkers.test11_walkers(Delta=args.Delta, seed=seed + 11),
     }
     results = []
     for t in tests:
         if t not in runners:
-            print(f"\n== Test {t}: not in this command yet (Test 10: sho-mcmc-inject)")
+            print(
+                f"\n== Test {t}: not in this command "
+                "(Test 9: sho-mcmc --emcee, Test 10: sho-mcmc-inject)"
+            )
             continue
         r = runners[t]()
         results.append(r)
