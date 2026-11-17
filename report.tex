@@ -180,10 +180,6 @@ If a test fails or is not useful, we will update the plan in a new commit and ke
 
 \subsection{Validation Plan Revisions}
 
-\includepdf[pages=-,pagecommand={\thispagestyle{plain}}]{Validation.pdf}
-
-\subsection{Revisions and what prompted them}
-
 \begin{table}[htbp]
 \centering
 \footnotesize
@@ -250,7 +246,7 @@ v1.3 and v1.4 were written, one day earlier.}
 \label{tab:versions}
 \end{table}
 
-\paragraph{v1.1.} Alexandra introduced Test 11 to evaluate multiple walkers.
+\paragraph{v1.1.} Alex introduced Test 11 to evaluate multiple walkers.
 After burn-in, we measured the fraction of time each walker spent within a
 specified interval. Accurate sampling requires that all walkers yield
 comparable fractions. The initial script executed six walkers from distinct
@@ -654,7 +650,7 @@ one standard deviation is $\mathrm{erf}(1/\sqrt2) = 0.6827$. We measured this
 fraction for the middle slice and the path average. Each walker agreed with the
 exact fraction within $2.0\sigma$ (Fig.~\ref{fig:walkers}). Comparing the
 walkers gave $\chi^2 = 9.2$ and $3.6$ with 7 degrees of freedom ($p = 0.24$ and
-$0.82$). In Alexandra's first version of the test, six walkers used $N = 100$
+$0.82$). In Alex's first version of the test, six walkers used $N = 100$
 and $a = 0.5$. Their $\langle x^2\rangle$ and time spent in five regions
 matched the exact results within $0.4\sigma$, with $\hat R \le 1.0003$.
 
@@ -836,7 +832,7 @@ continuum.}
 \label{fig:inj}
 \end{figure}
 
-\subsection{What the testing caught}
+\subsection{What the Testing Caught}
 
 {\sloppy
 \begin{itemize}
@@ -872,7 +868,7 @@ continuum.}
   the test to halt with an error. When $m = 1$, no other test could detect this
   bug, which is why Test 10 includes cases with $m \ne 1$.
 \item \textbf{A script was disrupted by an external change.} During the review
-  of Alexandra's pull request, the multi-walker script failed at an import
+  of Alex's pull request, the multi-walker script failed at an import
   because the package had relocated \texttt{verify\_sho.py}. After updating the
   import and adding a fixed seed, the script executed successfully and produced
   results consistent with the exact values.
@@ -893,7 +889,7 @@ continuum.}
 
 \section{Use of Artificial Intelligence}
 
-Artificial intelligence was used to write the original script for the multiwalker.py test and add the docstrings according to numpy format. 
+Artificial intelligence was used to write the original script for the \texttt{multiwalker.py} test and add the docstrings according to numpy format. 
 
 \section{Discussion and conclusions}
 
