@@ -19,7 +19,7 @@ lattice <x^2>, so the expected fraction in [lo, hi] comes from erf.
 MC estimate per sweep: the fraction of the N time slices inside [lo, hi].
 
 Needs the package installed (once, from the repository folder):  pip install -e .
-Set the parameters at the bottom, then run:  python verify_sho_ALEX.py
+Set the parameters at the bottom, then run:  python -m sho_mcmc.multiwalker
 """
 
 from math import erf, sqrt
@@ -31,7 +31,22 @@ from sho_mcmc import binning_error, exact_correlator, metropolis
 
 # ---------------- exact results ----------------
 def gaussian_fraction(lo, hi, var):
-    """P(lo <= x <= hi) for x ~ N(0, var). lo/hi may be -inf/inf."""
+    """
+    Probability that a zero-mean Gaussian variable lies in [lo, hi].
+
+    Parameters
+    ----------
+    lo, hi : float
+        Lower and upper ends of the interval; either may be -np.inf or
+        np.inf for an open-ended tail.
+    var : float
+        Variance of the Gaussian.
+
+    Returns
+    -------
+    float
+        P(lo <= x <= hi) for x ~ N(0, var), from the error function.
+    """
     cdf = lambda x: (
         0.5 * (1 + erf(x / sqrt(2 * var))) if np.isfinite(x) else float(x > 0)
     )
@@ -39,7 +54,32 @@ def gaussian_fraction(lo, hi, var):
 
 
 def exact_region(regions, N, a, m, w):
-    """Exact lattice and continuum (beta = N a) <x^2> and region fractions."""
+    """
+    Exact <x^2> and region fractions, on the lattice and in the continuum.
+
+    The lattice value of <x^2> is C(0) from the exact lattice correlator. The
+    continuum value is the thermal oscillator result
+    <x^2> = coth(beta w / 2) / (2 m w) at the same beta = N a (hbar = 1).
+    In both cases x is Gaussian, so each region fraction follows from
+    `gaussian_fraction` with that variance.
+
+    Parameters
+    ----------
+    regions : list of tuple of float
+        Intervals (lo, hi) in x; the ends may be infinite.
+    N : int
+        Number of time slices.
+    a, m, w : float
+        Lattice spacing, mass and frequency.
+
+    Returns
+    -------
+    lattice : dict
+        Exact lattice values: key "x2" for <x^2>, and key (lo, hi) for the
+        fraction of time in each region.
+    continuum : dict
+        The same quantities for the continuum oscillator (a -> 0).
+    """
     x2_lat = exact_correlator(N, a, m, w)[0]
     x2_con = 1 / (2 * m * w * np.tanh(N * a * w / 2))
     lattice = {"x2": x2_lat}
@@ -52,7 +92,39 @@ def exact_region(regions, N, a, m, w):
 
 # ---------------- walkers ----------------
 def run_walkers(K, N, a, m, w, sweeps, delta, x0_spread=3.0, seed=None):
-    """K independent chains with starting points spread over [-x0_spread, x0_spread]."""
+    """
+    Run K independent Metropolis walkers from spread-out starting points.
+
+    Walker i starts with every x_t equal to the i-th of K values evenly
+    spaced in [-x0_spread, x0_spread], and has its own random stream.
+
+    Parameters
+    ----------
+    K : int
+        Number of walkers.
+    N : int
+        Number of time slices; must be even.
+    a, m, w : float
+        Lattice spacing, mass and frequency.
+    sweeps : int
+        Number of sweeps per walker, including burn-in.
+    delta : float
+        Proposal half-width in the code's units.
+    x0_spread : float, optional
+        Starting values run from -x0_spread to x0_spread (default 3.0).
+    seed : int or None, optional
+        Base seed; each walker gets an independent child seed from it.
+        None gives a different run every time.
+
+    Returns
+    -------
+    chains : ndarray, shape (K, sweeps + 1, N)
+        The starting path and the path after every sweep, for each walker.
+    accs : ndarray, shape (K,)
+        Acceptance rate of each walker.
+    x0s : ndarray, shape (K,)
+        Starting value of each walker.
+    """
     x0s = np.linspace(-x0_spread, x0_spread, K)
     seeds = np.random.SeedSequence(seed).spawn(K)
     chains, accs = [], []
@@ -64,7 +136,22 @@ def run_walkers(K, N, a, m, w, sweeps, delta, x0_spread=3.0, seed=None):
 
 
 def per_sweep(chain, regions):
-    """One value per sweep: <x^2> over time slices, and fraction of slices in each region."""
+    """
+    Measure the observables once per sweep for one walker.
+
+    Parameters
+    ----------
+    chain : ndarray, shape (n, N)
+        Paths of one walker, one row per sweep.
+    regions : list of tuple of float
+        Intervals (lo, hi) in x; the ends may be infinite.
+
+    Returns
+    -------
+    dict of ndarray, each shape (n,)
+        Key "x2": x^2 averaged over the N time slices. Key (lo, hi): the
+        fraction of the N time slices with lo <= x_t <= hi.
+    """
     obs = {"x2": np.mean(chain**2, axis=1)}
     for lo, hi in regions:
         obs[(lo, hi)] = np.mean((chain >= lo) & (chain <= hi), axis=1)
@@ -72,7 +159,23 @@ def per_sweep(chain, regions):
 
 
 def gelman_rubin(series):
-    """R-hat for series of shape (K, n): between- vs within-walker variance."""
+    """
+    Gelman-Rubin R-hat: between-walker against within-walker variance.
+
+    This is the original (not split, not rank-normalized) R-hat. It is close
+    to 1 when all walkers sample the same distribution, and larger when
+    they disagree.
+
+    Parameters
+    ----------
+    series : ndarray, shape (K, n)
+        One measured quantity: K walkers, n sweeps each.
+
+    Returns
+    -------
+    float
+        R-hat; the walkers count as converged below about 1.01.
+    """
     K, n = series.shape
     W = series.var(axis=1, ddof=1).mean()
     B = n * series.mean(axis=1).var(ddof=1)
@@ -80,6 +183,19 @@ def gelman_rubin(series):
 
 
 def name(key):
+    """
+    Readable label for an observable key, for tables and plots.
+
+    Parameters
+    ----------
+    key : str or tuple of float
+        "x2" or a region (lo, hi).
+
+    Returns
+    -------
+    str
+        "<x^2>" or "frac [lo, hi]".
+    """
     if key == "x2":
         return "<x^2>"
     lo, hi = key
@@ -88,7 +204,43 @@ def name(key):
 
 # ---------------- report ----------------
 def verify_walkers(chains, accs, x0s, regions, N, a, m, w, burn, save=None):
-    """Print the multi-walker table and draw trace / pull / region figures."""
+    """
+    Print the multi-walker table and draw the figures.
+
+    For <x^2> and every region it computes each walker's mean and binning
+    error, the pulls against the exact lattice value, chi^2 / K, the
+    fraction of walkers within 2 sigma, R-hat, scatter / err, and the mean
+    of all walkers with its deviation from the exact lattice value. It
+    prints a warning for any R-hat above 1.01.
+
+    Parameters
+    ----------
+    chains : ndarray, shape (K, sweeps + 1, N)
+        Walker paths from `run_walkers`.
+    accs : ndarray, shape (K,)
+        Acceptance rate of each walker.
+    x0s : ndarray, shape (K,)
+        Starting value of each walker.
+    regions : list of tuple of float
+        Intervals (lo, hi) in x; the ends may be infinite.
+    N : int
+        Number of time slices.
+    a, m, w : float
+        Lattice spacing, mass and frequency.
+    burn : int
+        Number of initial sweeps to discard from every walker.
+    save : str or None, optional
+        If given, the figures are saved as "<save>_traces.png",
+        "<save>_test7_traces.png", "<save>_pulls.png" and
+        "<save>_regions.png".
+
+    Returns
+    -------
+    dict
+        One entry per observable key ("x2" or (lo, hi)), each a dict with
+        "means" and "errs" (per walker), "pulls" (per walker), "chi2_K",
+        "rhat", "scatter", and "pooled" = (mean of walkers, its error).
+    """
     K = len(chains)
     obs = [per_sweep(c[burn:], regions) for c in chains]
     lattice, continuum = exact_region(regions, N, a, m, w)
@@ -156,7 +308,28 @@ def verify_walkers(chains, accs, x0s, regions, N, a, m, w, burn, save=None):
 
 # ---------------- plots ----------------
 def plot_traces(chains, x0s, lattice, burn, title=""):
-    """x^2 per sweep for every walker, including burn-in (check d)."""
+    """
+    Trace of x^2, averaged over time slices, for every walker (check d).
+
+    Parameters
+    ----------
+    chains : ndarray, shape (K, sweeps + 1, N)
+        Walker paths, including burn-in.
+    x0s : ndarray, shape (K,)
+        Starting value of each walker, for the legend.
+    lattice : dict
+        Exact lattice values from `exact_region`; "x2" is drawn as a line.
+    burn : int
+        Burn-in length, marked with a dashed line. The left panel shows the
+        first 3 * burn sweeps on a log scale.
+    title : str, optional
+        Figure title.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        Left panel: start of the run. Right panel: the whole run.
+    """
     fig, ax = plt.subplots(1, 2, figsize=(12, 4), constrained_layout=True)
     x2 = np.mean(chains**2, axis=2)  # (K, sweeps+1)
     early = min(x2.shape[1], 3 * burn) if burn else x2.shape[1]
@@ -182,6 +355,27 @@ def plot_test7_traces(chains, x0s, N, a, m, w, burn, title=""):
     whole run. The black line is the exact lattice mean and the grey band is
     ± one exact standard deviation of the quantity, so a converged walker
     should wander inside and around the band, with no drift.
+
+    Parameters
+    ----------
+    chains : ndarray, shape (K, sweeps + 1, N)
+        Walker paths, including burn-in.
+    x0s : ndarray, shape (K,)
+        Starting value of each walker, for the legend.
+    N : int
+        Number of time slices; the middle site is j0 = N // 2.
+    a, m, w : float
+        Lattice spacing, mass and frequency, for the exact values.
+    burn : int
+        Burn-in length, marked with a dashed line. The left column shows
+        the first 3 * burn sweeps.
+    title : str, optional
+        Text added to the figure title.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        Three rows (x_{j0}, x_{j0}^2, path average) by two columns.
     """
     j0 = N // 2
     C = exact_correlator(N, a, m, w)
@@ -221,7 +415,24 @@ def plot_test7_traces(chains, x0s, N, a, m, w, burn, title=""):
 
 
 def plot_pulls(results, keys, title=""):
-    """Pull of every walker for every observable, with 1 and 2 sigma bands (check a)."""
+    """
+    Pull of every walker for every observable, with 1 and 2 sigma bands (check a).
+
+    Parameters
+    ----------
+    results : dict
+        Output of `verify_walkers`; the "pulls" of each key are drawn.
+    keys : list
+        Observable keys to show, one row each.
+    title : str, optional
+        Figure title.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        One row per observable; each dot is one walker's
+        (mean - exact lattice) / error.
+    """
     fig, ax = plt.subplots(figsize=(7, 0.6 * len(keys) + 1.5), constrained_layout=True)
     ax.axvspan(-2, 2, color="C2", alpha=0.12, label=r"$\pm 2\sigma$")
     ax.axvspan(-1, 1, color="C2", alpha=0.25, label=r"$\pm 1\sigma$")
@@ -243,7 +454,27 @@ def plot_pulls(results, keys, title=""):
 
 
 def plot_regions(results, regions, lattice, continuum, title=""):
-    """Fraction of time in each region: every walker, their mean, exact lattice, continuum."""
+    """
+    Fraction of time in each region: every walker, their mean, exact values.
+
+    Parameters
+    ----------
+    results : dict
+        Output of `verify_walkers`; "means", "errs" and "pooled" of each
+        region are drawn.
+    regions : list of tuple of float
+        Intervals (lo, hi) to show, in order.
+    lattice, continuum : dict
+        Exact values from `exact_region`, drawn as solid and dashed lines.
+    title : str, optional
+        Figure title.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        One cluster per region: walker fractions with error bars, the mean
+        of the walkers, and the exact lattice and continuum values.
+    """
     fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
     for j, r in enumerate(regions):
         res = results[r]
