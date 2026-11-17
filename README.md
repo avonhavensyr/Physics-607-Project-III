@@ -13,8 +13,10 @@ From the repository folder:
 
     sho-mcmc --N 64 --a 0.25 --seed 1 --out run1           # hand-written Metropolis
     sho-mcmc --N 64 --a 0.25 --seed 1 --emcee --out run1   # also emcee (slow)
-    sho-mcmc-validate --out val1                           # Tests 6, 8 and 11
+    sho-mcmc-validate --out val1                           # Tests 1-8 and 11
     sho-mcmc-inject --out inj1                             # Test 10
+    python3 scripts/break_code.py                          # Test 12: bugs on purpose (6 min)
+    python3 -m sho_mcmc.multiwalker                        # Alexandra's multi-walker check
     sho-mcmc --help
 
 If your terminal cannot find the commands, use `python3 -m sho_mcmc`,
@@ -26,7 +28,7 @@ settings, the seed and the results, so every run can be repeated.
 
     bash scripts/run_all.sh
 
-This writes everything into `results/` (about 5 minutes).
+This writes everything into `results/` (about 12 minutes).
 
 ## Layout
 
@@ -40,11 +42,16 @@ This writes everything into `results/` (about 5 minutes).
         plots.py            summary and diagnostic figures
         verify.py           physics and symmetry checks, Metropolis vs emcee
         main.py             the sho-mcmc command
+        checks.py           Tests 1-5: action, covariance, error bars, small lattice, known answers
         symmetries.py       Test 6: symmetries and starting points
+        convergence.py      Test 7: R-hat and effective sample size
         tuning.py           Test 8: acceptance and choice of step size
         injection.py        Test 10: injection and recovery (sho-mcmc-inject)
         walkers.py          Test 11: multi-walker test
+        multiwalker.py      Alexandra's multi-walker check
         validate.py         the sho-mcmc-validate command
     scripts/run_all.sh      reproduces everything in results/
+    scripts/break_code.py   Test 12: puts bugs into a copy of the code
     results/                outputs of the runs used in the report
     Validation*.tex/.pdf    the validation plan: original and revisions
+    report.tex, report.pdf  the report

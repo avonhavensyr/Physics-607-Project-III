@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Reproduce every result in results/. Run from the repository folder:
 #     bash scripts/run_all.sh
-# Takes about 5 minutes; the emcee part alone takes 1-2 minutes.
+# Takes about 12 minutes; the emcee part takes 1-2 minutes and Test 12 about 6.
 set -e
 mkdir -p results
 cd results
@@ -12,10 +12,13 @@ cd results
 python3 -m sho_mcmc --N 64 --a 0.25 --sweeps 48000 --burn 8000 --delta 1.231 \
     --seed 2026 --emcee --out main --no-show
 
-# Tests 6, 8 and 11 of the validation plan
+# Tests 1-8 and 11 of the validation plan
 python3 -m sho_mcmc.validate --out val --no-show
 
 # Test 10: injection and recovery of m and w, with the negative control
 python3 -m sho_mcmc.injection --out inj --no-show
+
+# Test 12: put bugs into a copy of the code on purpose; every bug must be caught
+python3 ../scripts/break_code.py | tee break_code.txt
 
 echo "done: everything is in results/"
