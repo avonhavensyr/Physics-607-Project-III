@@ -1,3 +1,5 @@
+Project 3 - Javad Yousefian | Alexandra VonHaven | Kevin Geumhan
+
 # sho-mcmc
 
 Metropolis sampling of the quantum harmonic oscillator path integral on a
