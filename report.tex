@@ -50,7 +50,7 @@ In this project, we plan to sample the path integral of the quantum harmonic osc
 
 Our main goal is to check if our Metropolis code samples the correct distribution. The harmonic oscillator is a good choice for validation because its lattice distribution is Gaussian, which lets us compare with exact analytical results. 
 
-\subsection{The Model}
+\subsection{The model}
 The Euclidean action of the oscillator is
 \begin{equation}
   S_E = \int_0^{T_\tau} d\tau \left[ \frac{m}{2}\dot x^2 + \frac{m\omega^2}{2}x^2 \right].
@@ -66,7 +66,7 @@ The endpoints are fixed, $u_0 = u_N = 0$, so the free variables are $u_1, \dots,
 \end{equation}
 and we sample $\pi(u) \propto e^{-\mathcal S(u)}$. We keep the endpoints fixed and do not use periodic boundaries, because that would change the distribution.
 
-\paragraph{Exact Solution.} The action can be written as $\mathcal S = \frac12 u^T Q u$, where $Q$ has 2 on the diagonal and $-g$ next to the diagonal. Since $|g| < 1$, $Q$ is positive definite, so $\pi$ is a Gaussian with mean zero and covariance $Q^{-1}$:
+\paragraph{Exact answer.} The action can be written as $\mathcal S = \frac12 u^T Q u$, where $Q$ has 2 on the diagonal and $-g$ next to the diagonal. Since $|g| < 1$, $Q$ is positive definite, so $\pi$ is a Gaussian with mean zero and covariance $Q^{-1}$:
 \begin{equation}
   \langle u_j \rangle = 0, \qquad \langle u_j u_k \rangle = (Q^{-1})_{jk}, \qquad \langle u_j^4 \rangle = 3 \left[(Q^{-1})_{jj}\right]^2 .
   \label{eq:exact}
@@ -82,14 +82,14 @@ Far from the ends this is about $\frac{1+\kappa}{2a}\rho^{|j-k|}$ with $\rho = (
 
 \paragraph{Symmetries.} The distribution does not change if we flip the sign of the path ($u \to -u$) or if we reverse it in time ($u_j \to u_{N-j}$). So $\langle u_j\rangle = 0$ and $\langle u_j u_k\rangle = \langle u_{N-j}u_{N-k}\rangle$. There are no degeneracies, because $Q$ is positive definite and there is only one peak, at $u = 0$.
 
-\paragraph{Energy Gap.} In the middle of the lattice the correlation falls like $\rho^k$, so the decay rate per unit time is
+\paragraph{Energy gap.} In the middle of the lattice the correlation falls like $\rho^k$, so the decay rate per unit time is
 \begin{equation}
   \frac{\omega_{\text{lat}}}{\omega} = \frac{2}{a}\,\mathrm{artanh}\!\left(\frac a2\right).
   \label{eq:wlat}
 \end{equation}
 For small $a$ this goes to 1, which is the continuum gap $E_1 - E_0 = \hbar\omega$. At $a = 1$ it is 1.099.
 
-\subsection{What the Code Will Do}
+\subsection{What the code will do}
 \begin{enumerate}
   \item Make a path with $u_0 = u_N = 0$ and compute its action, Eq.~\eqref{eq:action}.
   \item Sample the path with our Metropolis code, and separately with \texttt{emcee}.
@@ -120,7 +120,7 @@ We will try $\Delta = 0.5$, 1, 1.5, 2, 2.5, 3, and 4 in short pilot runs. After 
 
 \paragraph{Settings.} Our main lattice is $N = 64$ and $a = 0.25$, so $T = Na = 16$. For the energy gap test, we also use $N = 16$ with $a = 1$, and $N = 32$ with $a = 0.5$. We start four chains, each with 8,000 sweeps of burn-in and 40,000 sweeps for sampling. If the convergence checks fail, we will run longer. Two chains start at $u = 0$, and the other two start from a random path that is much wider than the real distribution.
 
-\subsection{Error Bars and Passing Conditions}
+\subsection{Error bars and when a test passes}
 Our samples are correlated, so we cannot use the normal $\sigma/\sqrt{M}$ error. We compute the integrated autocorrelation time
 \begin{equation}
   \tau_{\text{int}} = \frac12 + \sum_{\ell=1}^{\ell_{\max}} \rho(\ell),
@@ -136,47 +136,43 @@ and a test passes if $z \le 3.5$. We do many comparisons, so one of them could f
 \subsection{Tests}
 For every test we write what we check, when it passes, and what it would mean if it fails.
 
-\subsubsection*{Test 1: Action and the Update}
+\subsubsection*{Test 1: Action and the update}
 We compare $\Delta\mathcal S$ from Eq.~\eqref{eq:dS} with the difference of the full action for 1000 random paths. They should agree to $10^{-10}$. We also check that $\frac12 u^T Q u$ gives the same action, that the acceptance probability is always between 0 and 1, and that the fast odd/even sweep gives exactly the same result as a simple loop over the sites when we give both the same random numbers. If this fails, there is probably a sign or index mistake, or a problem at the endpoints.
 
-\subsubsection*{Test 2: Exact Covariance}
+\subsubsection*{Test 2: Exact covariance}
 We check that our $Q$ is symmetric and positive definite, that its eigenvalues are $2 - 2g\cos(r\pi/N)$ for $r = 1, \dots, N-1$, and that the closed formula Eq.~\eqref{eq:Qinv} agrees with NumPy's inverse to $10^{-10}$. For $a = 0.25$ the numbers should match the values in Section 2. All the other tests compare with this, so if it fails we fix it first.
 
-\subsubsection*{Test 3: Error Bars}
+\subsubsection*{Test 3: Error bar code}
 Before we trust our error bars, we test the autocorrelation and batch-means code on AR(1) data, $x_t = \phi x_{t-1} + \sqrt{1-\phi^2}\,\epsilon_t$, where the exact answer is $\tau_{\text{int}} = (1+\phi)/(2(1-\phi))$. We use $\phi = 0.5$, 0.9 and 0.99. The estimate of $\tau_{\text{int}}$ should be within 10\%, the batch-means error within 20\%, and emcee's value should be about $2\tau_{\text{int}}$. We also check that $\hat R$ is below 1.01 for four normal chains and above 1.01 if we shift one of them. If this fails, none of our error bars can be trusted.
 
-\subsubsection*{Test 4: Very Small Lattices}
+\subsubsection*{Test 4: Very small lattices}
 For $N = 2$ there is only one variable, and it should be Gaussian with variance $1/2$. For $N = 3$ there are two variables, and $u_1+u_2$ and $u_1-u_2$ should be independent Gaussians with variances $2/(2-g)$ and $2/(2+g)$. We run 200,000 sweeps and do a Kolmogorov--Smirnov test against these Gaussians, which passes if $p > 0.001$. The variance, the fourth moment and the acceptance rate should also pass $z \le 3.5$. This test can find mistakes that Test 1 cannot, for example if we forget to save the old value when a step is rejected.
 
-\subsubsection*{Test 5: Known Answer at $N = 64$}
+\subsubsection*{Test 5: Known answer at $N = 64$}
 This is the main test. With $N = 64$ and $a = 0.25$ we measure $\langle u_{j_0}\rangle$, $\langle u_{j_0}u_{j_0+k}\rangle$ for $k = 0, 1, 2, 4, 8$, $\langle u_{j_0}^4\rangle$, and the variance at the sites near the ends ($j = 1, 2, 4$ and $N-4$, $N-2$, $N-1$). All of them should pass $z \le 3.5$ against Eq.~\eqref{eq:exact}. If something fails, the sampler is biased, there is a bug near the ends, or our error bars are wrong.
 
-\subsubsection*{Test 6: Symmetries and Starting Points}
+\subsubsection*{Test 6: Symmetries and starting points}
 Because of the symmetries, $\langle u_j\rangle$ should be zero at $j = N/4$, $N/2$ and $3N/4$, and $\langle u_{j_0}u_{j_0+4}\rangle$ should be equal to $\langle u_{j_0}u_{j_0-4}\rangle$. We also compare the chains that started at $u = 0$ with the ones that started from a wide random path, and they should agree within 3 error bars. If not, the burn-in is too short, the chains do not mix well, or a bug breaks one of the symmetries.
 
 \subsubsection*{Test 7: Convergence}
 We look at trace plots of $u_{j_0}$, $u_{j_0}^2$ and the path average $\bar u$. The path average changes the slowest, so it is the most important one. For all the numbers we report, we need $\hat R < 1.01$ (the rank-normalized split $\hat R$ from~\cite{vehtari}) and an effective sample size above 400 in total. If this fails, we run longer or change $\Delta$.
 
-\subsubsection*{Test 8: Acceptance Rate}
+\subsubsection*{Test 8: Acceptance rate}
 For each $\Delta$ in the pilot runs, the measured acceptance should agree with $A(\Delta)$ from Eq.~\eqref{eq:acc} ($z \le 3.5$), both for $a = 0.25$ and for $a = 1$. Since $A$ does not depend on $a$, both should give the same numbers. If it fails, there is a mistake in the $\delta^2$ part of $\Delta\mathcal S$, in the proposal width, or in the accept/reject step.
 
-\subsubsection*{Test 9: Our Sampler Against emcee}
+\subsubsection*{Test 9: Our sampler against emcee}
 We compare $\langle u_{j_0}\rangle$, $\langle u_{j_0}^2\rangle$ and the correlation at $k = 1, 4, 8$ from our sampler and from emcee at $N = 64$. The difference divided by the combined error bar should be at most 3. Both samplers should also agree with the exact answer, because two samplers can agree with each other and still both be wrong. If one of them does not converge, we do not use it to judge the other one.
 
-\subsubsection*{Test 10: Getting Back the Energy gap}
+\subsubsection*{Test 10: Getting back the energy gap}
 This is our injection test: we put $\omega$ into the code (through $a$), and we check that we get it back from the samples. For $a = 1$, 0.5 and 0.25 (all with $T = 16$) we fit $\langle u_{j_0}u_{j_0+k}\rangle \propto e^{-\hat\mu k}$ for times $ka$ between 0.5 and 3, using the middle part of the lattice. Then $\hat\mu/a$ should agree with Eq.~\eqref{eq:wlat} within 3.5 error bars, and the fit should be good ($p > 0.001$). At $a = 1$ the lattice value 1.099 is about 10\% above the continuum value, so we hope to see this difference. If the test fails, the fit is wrong or the sampler is biased at long distances.
 
 \subsubsection*{Test 11: Multi-Walker Test}
 We run the mcmc code for multiple walkers. After the burn-in period, we record the fraction of remaining sweeps that each walker stayed within a certain interval. If the code is valid, each walker should stay within a given region for roughly the same amount of time. 
 
 
-\subsection{Test Execution}
+\subsection{Test execution}
 When we write the code, we will turn these tests into \texttt{pytest} files where possible, so they can run automatically. Tests 1--4 and 8 are fast and will run on every pull request. Tests 5--7 need longer runs, and Tests 9 and 10 will be in a separate script. We have to look at the trace plots in Test 7 ourselves.
 
-\subsection{Workflow}
-We will add this plan to our Git repository before we start coding, so the Git history shows that the plan came before the code. After that, all changes (including code, tests, and this plan) will go through pull requests, and the other person will review them in writing before merging.
-
-If a test fails or is not useful, we will update the plan in a new commit and keep the old version in the history. The commit message and the report will explain what changed and why. 
 
 \subsection{Validation Plan Revisions}
 
@@ -280,7 +276,7 @@ description of \texttt{emcee} were updated accordingly. Since checkerboard
 updates require even $N$, we removed the $N = 3$ case from Test 4. The
 remaining $N = 2$, $a = 1$ test uses the independent Gaussian variables
 $x_0 + x_1$ and $x_0 - x_1$, whose variances are 2 and 0.4. We also edited the
-wording of the plan. These changes were committed together.
+wording of the  to make it clearer and now makes more sense. These changes were committed together.
 
 \paragraph{v1.5.} We aimed to ensure that the tests could detect incorrect
 code, not merely confirm correct code. We added Test 12, in which six distinct
@@ -289,9 +285,9 @@ each bug, at least one validation test was required to fail. The commands for
 running the tests were also included in Section 7 of the plan.
 
 
-\section{Model and Sampling Method}\label{sec:model}
+\section{Model and sampling method}\label{sec:model}
 
-\subsection{The Physical Problem}
+\subsection{The physical problem}
 
 We consider a one-dimensional quantum harmonic oscillator with mass $m$ and
 angular frequency $\omega$. We use units where $\hbar = 1$. In imaginary time,
@@ -305,7 +301,7 @@ inverse temperature $\beta = T$. When $\omega T \gg 1$, the excited states
 contribute very little. Then the position distribution is close to
 $|\psi_0(x)|^2$.
 
-\subsection{Lattice Action and Target Distribution}
+\subsection{Lattice action and target distribution}
 
 We divide the time interval into $N$ slices, each with spacing $a$. Thus,
 $T = Na$ and $x_N \equiv x_0$. A full path is the vector
@@ -375,7 +371,7 @@ $C(0) = \langle x^2\rangle$.}
 \label{tab:exact}
 \end{table}
 
-\subsection{Hand-Written Sampler: Checkerboard Metropolis}
+\subsection{Hand-written sampler: checkerboard Metropolis}
 
 We use a single-site Metropolis algorithm. This is useful here because each
 site interacts only with its two neighbors. We can calculate the change of the
@@ -394,7 +390,7 @@ calculated together using NumPy. This checkerboard method requires even $N$.
 One full sweep includes one update attempt for every site. The updates keep the
 target distribution invariant, and the chain can explore all possible paths.
 
-\subsection{Proposal Width, Burn-In and Run Length}
+\subsection{Proposal width, burn-in and run length}
 
 For fixed neighboring sites, $x_t$ has a Gaussian conditional distribution with
 variance $1/(2A)$. We define a dimensionless proposal width
@@ -471,7 +467,7 @@ a stable error using blocks of at least $10\,\tau_{\mathrm{int}}$ and at least
 binning error does not reach a plateau or if the two error estimates are
 different by more than 30\%.
 
-\subsection{Reference Sampler: emcee}
+\subsection{Reference sampler: emcee}
 
 For comparison, we also used the affine-invariant ensemble sampler
 \texttt{emcee}~\cite{emcee, goodman}, with the stretch move and
@@ -495,7 +491,7 @@ $\omega$ are estimated from the correlator using least squares, rather than
 from a posterior distribution.
 
 
-\section{Software and Reproducibility}\label{sec:software}
+\section{Software and reproducibility}\label{sec:software}
 
 The codebase is structured as an installable Python package,
 \texttt{sho-mcmc}. Installation from the repository is accomplished using
@@ -527,7 +523,7 @@ in the \texttt{results/} directory. The process requires approximately 12
 minutes on the test system. Pull requests are employed to review changes prior
 to merging into the main branch.
 
-\section{Sampling Results}\label{sec:results}
+\section{Sampling results}\label{sec:results}
 
 Table~\ref{tab:physics} reports the energy values and symmetry checks obtained
 from Metropolis and \texttt{emcee}. All results are within $1.1\sigma$ of the
@@ -544,7 +540,7 @@ which is $0.6\sigma$ from the lattice result but $3.1\sigma$ below the
 continuum value of $0.5$. The larger Metropolis error precludes clear
 separation of these values.
 
-\subsection*{Symmetries and Degeneracies}
+\subsection*{Symmetries and degeneracies}
 
 Three symmetries of the distribution were assessed. First, changing $x$ to
 $-x$ should not affect the probability, so averages of odd powers must be zero.
@@ -889,9 +885,17 @@ continuum.}
 
 \section{Use of Artificial Intelligence}
 
-Artificial intelligence was used to write the original script for the \texttt{multiwalker.py} test and add the docstrings according to numpy format. 
+Artificial intelligence was used to write the original script for the testing files. Additionally, AI assisted in the conversion from the original format to the package format specified in the project instructions.
 
-\section{Discussion and conclusions}
+
+\section{Partner Review}\label{sec:review}
+
+We collaborated through GitHub. Each of us worked on our own branch, and changes
+reached the main branch through pull requests that another member reviewed before merging. Kevin started with the code, Javad worked writing the validation and working on the code and do some tests and change it to be like a package and Alex also worked on validation and some tests. We worked on validation in overleaf update and push the updated one and add what has changed in each updated validation. Then we collaborated writing the report.
+
+
+
+\section{Discussion and Conclusions}
 
 The Metropolis sampler and \texttt{emcee} both produced results consistent with
 the exact lattice distribution. The energies, correlators, position histograms,
