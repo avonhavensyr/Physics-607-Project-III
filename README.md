@@ -53,5 +53,6 @@ This writes everything into `results/` (about 12 minutes).
     scripts/run_all.sh      reproduces everything in results/
     scripts/break_code.py   Test 12: puts bugs into a copy of the code
     results/                outputs of the runs used in the report
-    Validation*.tex/.pdf    the validation plan: original and revisions
-    report.tex, report.pdf  the report
+    Validation_Final.pdf    the validation plan: original
+    Validation_All_Versions.tex     Validation revisions
+    Report.pdf  the report
