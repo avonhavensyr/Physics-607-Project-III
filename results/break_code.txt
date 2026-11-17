@@ -1,0 +1,27 @@
+
+Bug 1: rejected steps are kept (no accept/reject)  (metropolis.py)
+   caught by: Test 1, Test 4, Test 5, Test 6, Test 7, Test 8, Test 11, sho-mcmc-inject crashed (RuntimeError: could not estimate the decay rate; run more sweeps)
+
+Bug 2: wrong sign of the neighbour term in dS  (metropolis.py)
+   caught by: Test 1, Test 4, Test 5, Test 11, sho-mcmc-inject crashed (RuntimeError: could not estimate the decay rate; run more sweeps)
+
+Bug 3: wrong neighbour: x_{t-1} used twice in dS  (metropolis.py)
+   caught by: Test 1, Test 5, Test 6, Test 8, Test 11, Test 10 (0/5 cases pass)
+
+Bug 4: missing factor m in the potential  (lattice.py)
+   caught by: sho-mcmc-inject crashed (AssertionError: exact_x2 disagrees)
+
+Bug 5: no checkerboard: all sites updated at once  (metropolis.py)
+   caught by: Test 1, Test 4, Test 5, Test 6, Test 8, Test 11, Test 10 (0/5 cases pass)
+
+Bug 6: error bars ignore the autocorrelation (tau_int = 1/2)  (diagnostics.py)
+   caught by: Test 3
+
+Summary
+  bug 1: rejected steps are kept (no accept/reject): Test 1, Test 4, Test 5, Test 6, Test 7, Test 8, Test 11, sho-mcmc-inject crashed (RuntimeError: could not estimate the decay rate; run more sweeps)
+  bug 2: wrong sign of the neighbour term in dS: Test 1, Test 4, Test 5, Test 11, sho-mcmc-inject crashed (RuntimeError: could not estimate the decay rate; run more sweeps)
+  bug 3: wrong neighbour: x_{t-1} used twice in dS: Test 1, Test 5, Test 6, Test 8, Test 11, Test 10 (0/5 cases pass)
+  bug 4: missing factor m in the potential: sho-mcmc-inject crashed (AssertionError: exact_x2 disagrees)
+  bug 5: no checkerboard: all sites updated at once: Test 1, Test 4, Test 5, Test 6, Test 8, Test 11, Test 10 (0/5 cases pass)
+  bug 6: error bars ignore the autocorrelation (tau_int = 1/2): Test 3
+Test 12 PASS: every bug was caught by at least one test
