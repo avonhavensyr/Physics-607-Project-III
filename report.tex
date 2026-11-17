@@ -179,25 +179,119 @@ We will add this plan to our Git repository before we start coding, so the Git h
 If a test fails or is not useful, we will update the plan in a new commit and keep the old version in the history. The commit message and the report will explain what changed and why. 
 
 \subsection{Validation Plan Revisions}
-The following revisions are documented based on the update history of the main branch. 
 
-\subsubsection{11/13/2026: Initial Multi-Walker Test} 
-The new test runs a specified number of walkers and determines how long each walker stays in the intervals $[-\infty, -1]$, $[-\frac12,\frac12]$, $[\frac12, 1]$, and $[1, \infty]$. 
-The code assumes a burn-in period of 1000 iterations and calculates the fraction of the total post-burn-in iterations each walker was within each of these given intervals. 
-The main plot shows the fraction of time spent in each region for the walkers over the expected values based on the lattice produced by the \texttt{exact\_correlator} function in \texttt{verify\_sho.py} as well as the analytical continuum value for the quantum harmonic oscillator.
-We included an additional plot showing how well the walkers agree with one another more directly by plotting the standard deviation. The plot highlights where the standard deviation is for the whole set.
+\includepdf[pages=-,pagecommand={\thispagestyle{plain}}]{Validation.pdf}
 
-\subsubsection{11/14/2026: Revised Periodic Lattice Test}
-On the periodic lattice, there are no longer end sites. There is an additional symmetry present when shifting the path in time $x_t\to x_{t+s}$. Time reversal is now defined as $x_t \to x_{N-t}$. The pass threshold for each check is also specified.
+\subsection{Revisions and what prompted them}
 
-\subsubsection{11/14/2026: Multi-Walker Test}
-A second multi-walker test file was created. It runs 8000 burn-in sweeps and keeps the subsequent 40,000. The script tests the path average instead of averaging over all sites at every sweep. It also gives a clearer pass/fall verdict than the previous test.
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{p{1.1cm}p{1.7cm}p{7.8cm}p{3.8cm}}
+\toprule
+Version & Commit & What changed & Why\\
+\midrule
+v1 \newline Nov 10 & 9063227 &
+The original plan: fixed endpoints, Metropolis and \texttt{emcee}, Tests 1--10. &
+This version was prepared before implementation.\\[2pt]
+v1.1 \newline Nov 14 & 4ef6b7d &
+Test 11 (multi-walker test) added. The new test runs a specified number of
+walkers and determines how long each walker stays in the intervals
+$[-\infty, -1]$, $[-\frac12,\frac12]$, $[\frac12, 1]$, and $[1, \infty]$.
+The code assumes a burn-in period of 1000 iterations and calculates the
+fraction of the total post-burn-in iterations each walker was within each of
+these given intervals. The main plot shows the fraction of time spent in each
+region for the walkers over the expected values based on the lattice produced
+by the \texttt{exact\_correlator} function in \texttt{verify\_sho.py} as well
+as the analytical continuum value for the quantum harmonic oscillator. We
+included an additional plot showing how well the walkers agree with one
+another more directly by plotting the standard deviation. The plot highlights
+where the standard deviation is for the whole set. &
+\\[2pt]
+v1.2 \newline Nov 14 & d8dcc13 &
+Tests 6 and 8 rewritten for the periodic lattice; pass limits for Test 11.
+On the periodic lattice, there are no longer end sites. There is an additional
+symmetry present when shifting the path in time $x_t\to x_{t+s}$. Time
+reversal is now defined as $x_t \to x_{N-t}$. The pass threshold for each check
+is also specified. A second multi-walker test file was created. It runs 8000
+burn-in sweeps and keeps the subsequent 40,000. The script tests the path
+average instead of averaging over all sites at every sweep. It also gives a
+clearer pass/fall verdict than the previous test. &
+The code samples a periodic lattice instead of using fixed endpoints and
+measures the step size in alternative units.\\[2pt]
+v1.3 \newline Nov 15 & 2bdc52d, 0615203 \newline (again: dde214f, 5a48677) &
+Sections 3, 4, 5 and 7 and Test 10 rewritten for the periodic code; Test 10
+recovers $m$ and $\omega$, with a negative control; commands instead of
+\texttt{pytest}. The initial version of this test employed the fixed-endpoint
+lattice and its energy-gap formula. The current code samples the periodic
+lattice with the action
+$S=\sum_t\big[\tfrac{m}{2a}(x_{t+1}-x_t)^2+\tfrac{a m\omega^2}{2}x_t^2\big]$. &
+The same mismatch persisted; recovering both input parameters tests a broader
+portion of the code. Our tests are statistical runs with retained
+outputs.\\[2pt]
+v1.4 \newline Nov 16 & b499b66 &
+Section 2 written for the periodic lattice; Tests 1--5, 7 and 9 and the
+\texttt{emcee} paragraph changed to match the code; Test 4 uses only $N = 2$;
+the whole plan reworded in a more formal style. The wording of the whole plan
+was also made more formal; the content of the other sections did not change. &
+To fully align the plan with the code; the checkerboard update requires an even
+$N$.\\[2pt]
+v1.5 \newline Nov 16 & 58ad912, 321bd64 &
+Test 12 added: six bugs put into a copy of the code on purpose; Section 7 lists
+the command for every test. &
+Until then, only the negative control had demonstrated that a test could
+fail.\\
+\bottomrule
+\end{tabular}
+\caption{Versions of the validation plan, with the dates of their commits
+(\texttt{git log -{}- Validation*}). The plan text gives the dates on which
+v1.3 and v1.4 were written, one day earlier.}
+\label{tab:versions}
+\end{table}
 
-\subsubsection{11/15/2026: Revised Test 10}
-The initial version of this test employed the fixed-endpoint lattice and its energy-gap formula. The current code samples the periodic lattice with the action $S=\sum_t\big[\tfrac{m}{2a}(x_{t+1}-x_t)^2+\tfrac{a m\omega^2}{2}x_t^2\big]$. Accordingly, the test was revised to recover both $m$ and $\omega$, rather than only the energy gap.
+\paragraph{v1.1.} Alexandra introduced Test 11 to evaluate multiple walkers.
+After burn-in, we measured the fraction of time each walker spent within a
+specified interval. Accurate sampling requires that all walkers yield
+comparable fractions. The initial script executed six walkers from distinct
+starting positions, compared their $\langle x^2\rangle$ values and time
+fractions in various regions to the exact Gaussian distribution, and computed
+$\hat R$. In v1.2, we incorporated numerical pass limits.
 
-\subsubsection{11/15/2026: Final Plan Revisions}
-Section 2 now describes the periodic lattice used in the code. Tests 1--5, 7, and 9, as well as the \texttt{emcee} paragraph in Section 4, were updated accordingly. The wording of the whole plan was also made more formal; the content of the other sections did not change.
+\paragraph{v1.2.} By November 14, the code sampled a periodic lattice, whereas
+the initial plan used fixed endpoints and a rescaled action. We updated Tests 6
+and 8 to match the actual lattice. For a periodic lattice, time translation is
+also a symmetry. We also corrected the step-size conversion:
+$\delta = \Delta/\sqrt{A}$. For Test 11, each walker's fraction of time inside
+$|q| < \sigma_q$ must agree with $\mathrm{erf}(1/\sqrt2) = 0.6827$ within
+$3.5\sigma$, and the comparison among walkers must yield $p > 10^{-3}$.
+
+\paragraph{v1.3.} We revised the sections detailing the model, sampler
+settings, error analysis, and test execution procedures. Test 10 was
+also modified: instead of estimating only the energy gap, it now employs five
+lattices with known mass and frequency, fitting both parameters from the
+correlator. Both parameters must be recovered within $3.5\sigma$, and the fit
+must yield $p > 10^{-3}$. We introduced a negative control with input
+$\omega = 1.1$, compared to $\omega = 1$; this control is required to fail. We
+used package commands instead of separate \texttt{pytest} files, as our tests
+involve statistical simulations, figures, and saved results. The v1.3 commits
+were inadvertently pushed twice, resulting in two sets of commits with
+identical content.
+
+\paragraph{v1.4.} We also updated the plan to describe the periodic lattice and
+its exact covariance and energy formulas. Tests 1--5, 7, and 9, and the
+description of \texttt{emcee} were updated accordingly. Since checkerboard
+updates require even $N$, we removed the $N = 3$ case from Test 4. The
+remaining $N = 2$, $a = 1$ test uses the independent Gaussian variables
+$x_0 + x_1$ and $x_0 - x_1$, whose variances are 2 and 0.4. We also edited the
+wording of the plan. These changes were committed together.
+
+\paragraph{v1.5.} We aimed to ensure that the tests could detect incorrect
+code, not merely confirm correct code. We added Test 12, in which six distinct
+bugs were introduced individually into a temporary copy of the package. For
+each bug, at least one validation test was required to fail. The commands for
+running the tests were also included in Section 7 of the plan.
+
 
 \section{Model and sampling method}\label{sec:model}
 
@@ -656,114 +750,6 @@ of changes in Git. For v1.3 and v1.5, a copy of the previous version was saved
 before edits were committed. Version v1.4 was committed in a single step.
 Table~\ref{tab:versions} provides the version dates, commit IDs, and main
 changes.
-
-\subsection{The plan as first written (v1)}\label{sec:v1}
-
-The first plan was written on November 9 and submitted on November 10, prior
-to implementation. It is included below in its original form. This plan used
-rescaled variables $u_j$, with $\kappa = a^2/4$ and
-$g = (1-\kappa)/(1+\kappa)$. The action was
-$\sum_j u_j^2 - g\sum_j u_j u_{j+1}$, with fixed endpoints $u_0 = u_N = 0$.
-Thus, the main lattice had 63 free variables. The plan used fixed endpoints
-instead of periodic boundaries because these give different distributions. We
-planned to compare our Metropolis sampler with \texttt{emcee}. The first plan
-contained ten tests. They checked the action and updates (Test 1), exact
-covariance (Test 2), error estimates (Test 3), very small lattices (Test 4),
-exact results for $N = 64$ (Test 5), symmetries and starting conditions
-(Test 6), convergence (Test 7), acceptance rate (Test 8), the two samplers
-(Test 9), and recovery of the energy gap (Test 10). The original plan also
-proposed using \texttt{pytest} and running quick tests before merging pull
-requests.
-
-\includepdf[pages=-,pagecommand={\thispagestyle{plain}}]{Validation.pdf}
-
-\subsection{Revisions and what prompted them}
-
-\begin{table}[htbp]
-\centering
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{p{1.1cm}p{1.7cm}p{4.6cm}p{3.8cm}}
-\toprule
-Version & Commit & What changed & Why\\
-\midrule
-v1 \newline Nov 10 & 9063227 &
-The original plan: fixed endpoints, Metropolis and \texttt{emcee}, Tests 1--10. &
-This version was prepared before implementation.\\[2pt]
-v1.1 \newline Nov 14 & 4ef6b7d &
-Test 11 (multi-walker test) added. &
-\\[2pt]
-v1.2 \newline Nov 14 & d8dcc13 &
-Tests 6 and 8 rewritten for the periodic lattice; pass limits for Test 11. &
-The code samples a periodic lattice instead of using fixed endpoints and
-measures the step size in alternative units.\\[2pt]
-v1.3 \newline Nov 15 & 2bdc52d, 0615203 \newline (again: dde214f, 5a48677) &
-Sections 3, 4, 5 and 7 and Test 10 rewritten for the periodic code; Test 10
-recovers $m$ and $\omega$, with a negative control; commands instead of
-\texttt{pytest}. &
-The same mismatch persisted; recovering both input parameters tests a broader
-portion of the code. Our tests are statistical runs with retained
-outputs.\\[2pt]
-v1.4 \newline Nov 16 & b499b66 &
-Section 2 written for the periodic lattice; Tests 1--5, 7 and 9 and the
-\texttt{emcee} paragraph changed to match the code; Test 4 uses only $N = 2$;
-the whole plan reworded in a more formal style. &
-To fully align the plan with the code; the checkerboard update requires an even
-$N$.\\[2pt]
-v1.5 \newline Nov 16 & 58ad912, 321bd64 &
-Test 12 added: six bugs put into a copy of the code on purpose; Section 7 lists
-the command for every test. &
-Until then, only the negative control had demonstrated that a test could
-fail.\\
-\bottomrule
-\end{tabular}
-\caption{Versions of the validation plan, with the dates of their commits
-(\texttt{git log -{}- Validation*}). The plan text gives the dates on which
-v1.3 and v1.4 were written, one day earlier.}
-\label{tab:versions}
-\end{table}
-
-\paragraph{v1.1.} Alexandra introduced Test 11 to evaluate multiple walkers.
-After burn-in, we measured the fraction of time each walker spent within a
-specified interval. Accurate sampling requires that all walkers yield
-comparable fractions. The initial script executed six walkers from distinct
-starting positions, compared their $\langle x^2\rangle$ values and time
-fractions in various regions to the exact Gaussian distribution, and computed
-$\hat R$. In v1.2, we incorporated numerical pass limits.
-
-\paragraph{v1.2.} By November 14, the code sampled a periodic lattice, whereas
-the initial plan used fixed endpoints and a rescaled action. We updated Tests 6
-and 8 to match the actual lattice. For a periodic lattice, time translation is
-also a symmetry. We also corrected the step-size conversion:
-$\delta = \Delta/\sqrt{A}$. For Test 11, each walker's fraction of time inside
-$|q| < \sigma_q$ must agree with $\mathrm{erf}(1/\sqrt2) = 0.6827$ within
-$3.5\sigma$, and the comparison among walkers must yield $p > 10^{-3}$.
-
-\paragraph{v1.3.} We revised the sections detailing the model, sampler
-settings, error analysis, and test execution procedures. Test 10 was
-also modified: instead of estimating only the energy gap, it now employs five
-lattices with known mass and frequency, fitting both parameters from the
-correlator. Both parameters must be recovered within $3.5\sigma$, and the fit
-must yield $p > 10^{-3}$. We introduced a negative control with input
-$\omega = 1.1$, compared to $\omega = 1$; this control is required to fail. We
-used package commands instead of separate \texttt{pytest} files, as our tests
-involve statistical simulations, figures, and saved results. The v1.3 commits
-were inadvertently pushed twice, resulting in two sets of commits with
-identical content.
-
-\paragraph{v1.4.} We also updated the plan to describe the periodic lattice and
-its exact covariance and energy formulas. Tests 1--5, 7, and 9, and the
-description of \texttt{emcee} were updated accordingly. Since checkerboard
-updates require even $N$, we removed the $N = 3$ case from Test 4. The
-remaining $N = 2$, $a = 1$ test uses the independent Gaussian variables
-$x_0 + x_1$ and $x_0 - x_1$, whose variances are 2 and 0.4. We also edited the
-wording of the plan. These changes were committed together.
-
-\paragraph{v1.5.} We aimed to ensure that the tests could detect incorrect
-code, not merely confirm correct code. We added Test 12, in which six distinct
-bugs were introduced individually into a temporary copy of the package. For
-each bug, at least one validation test was required to fail. The commands for
-running the tests were also included in Section 7 of the plan.
 
 \subsection{What each test showed}
 
