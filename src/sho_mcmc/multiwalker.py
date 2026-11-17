@@ -21,6 +21,7 @@ MC estimate per sweep: the fraction of the N time slices inside [lo, hi].
 Needs the package installed (once, from the repository folder):  pip install -e .
 Set the parameters at the bottom, then run:  python verify_sho_ALEX.py
 """
+
 from math import erf, sqrt
 
 import numpy as np
@@ -31,7 +32,9 @@ from sho_mcmc import binning_error, exact_correlator, metropolis
 # ---------------- exact results ----------------
 def gaussian_fraction(lo, hi, var):
     """P(lo <= x <= hi) for x ~ N(0, var). lo/hi may be -inf/inf."""
-    cdf = lambda x: 0.5 * (1 + erf(x / sqrt(2 * var))) if np.isfinite(x) else float(x > 0)
+    cdf = lambda x: (
+        0.5 * (1 + erf(x / sqrt(2 * var))) if np.isfinite(x) else float(x > 0)
+    )
     return cdf(hi) - cdf(lo)
 
 
@@ -57,7 +60,7 @@ def run_walkers(K, N, a, m, w, sweeps, delta, x0_spread=3.0, seed=None):
         chain, acc = metropolis(N, a, m, w, sweeps, delta, x0, s, progress=False)
         chains.append(chain)
         accs.append(acc)
-    return np.array(chains), np.array(accs), x0s      # chains: (K, sweeps+1, N)
+    return np.array(chains), np.array(accs), x0s  # chains: (K, sweeps+1, N)
 
 
 def per_sweep(chain, regions):
@@ -91,15 +94,19 @@ def verify_walkers(chains, accs, x0s, regions, N, a, m, w, burn, save=None):
     lattice, continuum = exact_region(regions, N, a, m, w)
     keys = list(lattice)
 
-    print(f"N={N} a={a} m={m} w={w} beta={N * a:g}  K={K} walkers  "
-          f"sweeps used={chains.shape[1] - 1 - burn} each  "
-          f"acc={accs.mean():.3f} (range {accs.min():.3f}-{accs.max():.3f})")
-    print(f"{'observable':18s} {'Mean':>11s} {'± err':>8s} {'lattice':>9s} {'dev':>7s} "
-          f"{'continuum':>10s} {'chi2/K':>7s} {'in 2σ':>6s} {'R-hat':>7s} {'scatter/err':>11s}")
+    print(
+        f"N={N} a={a} m={m} w={w} beta={N * a:g}  K={K} walkers  "
+        f"sweeps used={chains.shape[1] - 1 - burn} each  "
+        f"acc={accs.mean():.3f} (range {accs.min():.3f}-{accs.max():.3f})"
+    )
+    print(
+        f"{'observable':18s} {'Mean':>11s} {'± err':>8s} {'lattice':>9s} {'dev':>7s} "
+        f"{'continuum':>10s} {'chi2/K':>7s} {'in 2σ':>6s} {'R-hat':>7s} {'scatter/err':>11s}"
+    )
 
     results = {}
     for k in keys:
-        series = np.array([o[k] for o in obs])                     # (K, n)
+        series = np.array([o[k] for o in obs])  # (K, n)
         means = series.mean(axis=1)
         errs = np.array([binning_error(s)[1][-1] for s in series])
         pulls = (means - lattice[k]) / errs
@@ -110,22 +117,37 @@ def verify_walkers(chains, accs, x0s, regions, N, a, m, w, burn, save=None):
         # mean of all walkers: walkers are independent, so errors add in quadrature
         pooled, pooled_err = means.mean(), np.sqrt(np.sum(errs**2)) / K
         dev = (pooled - lattice[k]) / pooled_err
-        print(f"{name(k):18s} {pooled:11.4f} {pooled_err:8.4f} {lattice[k]:9.4f} {dev:+6.1f}σ "
-              f"{continuum[k]:10.4f} {chi2_K:7.2f} {in2:6.0%} {rhat:7.4f} {scatter:11.2f}")
-        results[k] = {"means": means, "errs": errs, "pulls": pulls, "chi2_K": chi2_K,
-                      "rhat": rhat, "scatter": scatter, "pooled": (pooled, pooled_err)}
+        print(
+            f"{name(k):18s} {pooled:11.4f} {pooled_err:8.4f} {lattice[k]:9.4f} {dev:+6.1f}σ "
+            f"{continuum[k]:10.4f} {chi2_K:7.2f} {in2:6.0%} {rhat:7.4f} {scatter:11.2f}"
+        )
+        results[k] = {
+            "means": means,
+            "errs": errs,
+            "pulls": pulls,
+            "chi2_K": chi2_K,
+            "rhat": rhat,
+            "scatter": scatter,
+            "pooled": (pooled, pooled_err),
+        }
 
     bad = [name(k) for k in keys if results[k]["rhat"] > 1.01]
     if bad:
-        print(f"  warning: R-hat > 1.01 for {', '.join(bad)}; walkers not converged, "
-              "increase sweeps or burn")
-    print("expect: dev within ±2σ, chi2/K ~ 1, ~95% of walkers in 2σ, R-hat < 1.01, scatter/err ~ 1")
+        print(
+            f"  warning: R-hat > 1.01 for {', '.join(bad)}; walkers not converged, "
+            "increase sweeps or burn"
+        )
+    print(
+        "expect: dev within ±2σ, chi2/K ~ 1, ~95% of walkers in 2σ, R-hat < 1.01, scatter/err ~ 1"
+    )
 
     title = f"N={N}, a={a}, m={m}, w={w}, K={K} walkers"
-    figs = {"traces": plot_traces(chains, x0s, lattice, burn, title),
-            "test7_traces": plot_test7_traces(chains, x0s, N, a, m, w, burn, title),
-            "pulls": plot_pulls(results, keys, title),
-            "regions": plot_regions(results, regions, lattice, continuum, title)}
+    figs = {
+        "traces": plot_traces(chains, x0s, lattice, burn, title),
+        "test7_traces": plot_test7_traces(chains, x0s, N, a, m, w, burn, title),
+        "pulls": plot_pulls(results, keys, title),
+        "regions": plot_regions(results, regions, lattice, continuum, title),
+    }
     if save:
         for fname, f in figs.items():
             f.savefig(f"{save}_{fname}.png", dpi=130)
@@ -136,7 +158,7 @@ def verify_walkers(chains, accs, x0s, regions, N, a, m, w, burn, save=None):
 def plot_traces(chains, x0s, lattice, burn, title=""):
     """x^2 per sweep for every walker, including burn-in (check d)."""
     fig, ax = plt.subplots(1, 2, figsize=(12, 4), constrained_layout=True)
-    x2 = np.mean(chains**2, axis=2)                                # (K, sweeps+1)
+    x2 = np.mean(chains**2, axis=2)  # (K, sweeps+1)
     early = min(x2.shape[1], 3 * burn) if burn else x2.shape[1]
     for i, (tr, x0) in enumerate(zip(x2, x0s)):
         ax[0].plot(tr[:early], lw=0.7, label=f"x0={x0:+.1f}")
@@ -163,11 +185,16 @@ def plot_test7_traces(chains, x0s, N, a, m, w, burn, title=""):
     """
     j0 = N // 2
     C = exact_correlator(N, a, m, w)
-    x_mid = chains[:, :, j0]                                       # (K, sweeps+1)
+    x_mid = chains[:, :, j0]  # (K, sweeps+1)
     quantities = [
         # label, series, exact mean, exact standard deviation
         (rf"$x_{{{j0}}}$", x_mid, 0.0, np.sqrt(C[0])),
-        (rf"$x_{{{j0}}}^2$", x_mid**2, C[0], np.sqrt(2) * C[0]),   # Gaussian: var(x^2) = 2 C(0)^2
+        (
+            rf"$x_{{{j0}}}^2$",
+            x_mid**2,
+            C[0],
+            np.sqrt(2) * C[0],
+        ),  # Gaussian: var(x^2) = 2 C(0)^2
         (r"path average $\bar x$", chains.mean(axis=2), 0.0, np.sqrt(C.mean())),
     ]
     n = chains.shape[1]
@@ -187,7 +214,9 @@ def plot_test7_traces(chains, x0s, N, a, m, w, burn, title=""):
     ax[-1, 0].set_xlabel("sweep")
     ax[-1, 1].set_xlabel("sweep")
     ax[0, 0].legend(fontsize=7, ncol=2)
-    fig.suptitle(f"Test 7 trace plots, {title}  (black: exact, band: ±1 sd, red: burn-in)")
+    fig.suptitle(
+        f"Test 7 trace plots, {title}  (black: exact, band: ±1 sd, red: burn-in)"
+    )
     return fig
 
 
@@ -201,8 +230,13 @@ def plot_pulls(results, keys, title=""):
         p = results[k]["pulls"]
         ax.plot(p, np.full_like(p, j) + np.linspace(-0.15, 0.15, len(p)), "o", ms=4)
     lim = max(3.5, max(np.abs(results[k]["pulls"]).max() for k in keys) + 0.5)
-    ax.set(yticks=range(len(keys)), yticklabels=[name(k) for k in keys], xlim=(-lim, lim),
-           xlabel=r"(walker − lattice) / err  [$\sigma$]", title="Per-walker pulls")
+    ax.set(
+        yticks=range(len(keys)),
+        yticklabels=[name(k) for k in keys],
+        xlim=(-lim, lim),
+        xlabel=r"(walker − lattice) / err  [$\sigma$]",
+        title="Per-walker pulls",
+    )
     ax.legend(fontsize=8)
     fig.suptitle(title)
     return fig
@@ -214,15 +248,45 @@ def plot_regions(results, regions, lattice, continuum, title=""):
     for j, r in enumerate(regions):
         res = results[r]
         K = len(res["means"])
-        ax.errorbar(j + np.linspace(-0.25, 0.05, K), res["means"], yerr=res["errs"],
-                    fmt="o", ms=3, color="C0", alpha=0.7, label="walkers" if j == 0 else None)
-        ax.errorbar(j + 0.15, *res["pooled"], fmt="D", color="C1", capsize=4,
-                    label="Mean" if j == 0 else None)
-        ax.hlines(lattice[r], j - 0.35, j + 0.35, color="k", label="exact lattice" if j == 0 else None)
-        ax.hlines(continuum[r], j - 0.35, j + 0.35, color="C3", ls="--",
-                  label="continuum" if j == 0 else None)
-    ax.set(xticks=range(len(regions)), xticklabels=[name(r) for r in regions],
-           ylabel="fraction of time in region", title="Time spent in each region")
+        ax.errorbar(
+            j + np.linspace(-0.25, 0.05, K),
+            res["means"],
+            yerr=res["errs"],
+            fmt="o",
+            ms=3,
+            color="C0",
+            alpha=0.7,
+            label="walkers" if j == 0 else None,
+        )
+        ax.errorbar(
+            j + 0.15,
+            *res["pooled"],
+            fmt="D",
+            color="C1",
+            capsize=4,
+            label="Mean" if j == 0 else None,
+        )
+        ax.hlines(
+            lattice[r],
+            j - 0.35,
+            j + 0.35,
+            color="k",
+            label="exact lattice" if j == 0 else None,
+        )
+        ax.hlines(
+            continuum[r],
+            j - 0.35,
+            j + 0.35,
+            color="C3",
+            ls="--",
+            label="continuum" if j == 0 else None,
+        )
+    ax.set(
+        xticks=range(len(regions)),
+        xticklabels=[name(r) for r in regions],
+        ylabel="fraction of time in region",
+        title="Time spent in each region",
+    )
     ax.legend(fontsize=8)
     fig.suptitle(title)
     return fig
@@ -233,10 +297,10 @@ if __name__ == "__main__":
     a = 0.5
     m = 1
     w = 1
-    K = 6                # number of independent walkers
-    sweeps = 20000       # per walker
+    K = 6  # number of independent walkers
+    sweeps = 20000  # per walker
     delta = 1
-    x0_spread = 3.0      # walkers start at x0 evenly spaced in [-x0_spread, x0_spread]
+    x0_spread = 3.0  # walkers start at x0 evenly spaced in [-x0_spread, x0_spread]
     burn = 1000
     seed = 2026
     save = None
