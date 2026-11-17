@@ -12,7 +12,7 @@ From the repository folder:
 ## Run
 
     sho-mcmc --N 64 --a 0.25 --seed 1 --out run1           # hand-written Metropolis
-    sho-mcmc --N 64 --a 0.25 --seed 1 --emcee --out run1   # also emcee (slow)
+    sho-mcmc --N 64 --a 0.25 --seed 1 --emcee --out run1   # Test 9: also emcee (slow)
     sho-mcmc-validate --out val1                           # Tests 1-8 and 11
     sho-mcmc-inject --out inj1                             # Test 10
     python3 scripts/break_code.py                          # Test 12: bugs on purpose (6 min)
@@ -28,7 +28,9 @@ settings, the seed and the results, so every run can be repeated.
 
     bash scripts/run_all.sh
 
-This writes everything into `results/` (about 12 minutes).
+This runs Tests 1-12 and writes everything into `results/` (about 12
+minutes). The multi-walker check is not part of it; run it on its own as
+shown above.
 
 ## Layout
 
@@ -40,7 +42,7 @@ This writes everything into `results/` (about 12 minutes).
         diagnostics.py      binning errors and autocorrelation times
         chains.py           several chains, error bars and z-scores
         plots.py            summary and diagnostic figures
-        verify.py           physics and symmetry checks, Metropolis vs emcee
+        verify.py           Test 9: physics and symmetry checks, Metropolis vs emcee
         main.py             the sho-mcmc command
         checks.py           Tests 1-5: action, covariance, error bars, small lattice, known answers
         symmetries.py       Test 6: symmetries and starting points
@@ -53,6 +55,6 @@ This writes everything into `results/` (about 12 minutes).
     scripts/run_all.sh      reproduces everything in results/
     scripts/break_code.py   Test 12: puts bugs into a copy of the code
     results/                outputs of the runs used in the report
-    Validation_Final.pdf    the validation plan: original
-    Validation_All_Versions.tex     Validation revisions
-    Report.pdf  the report
+    Validation_All_Versions/  every version of the validation plan, v1 to v1.5
+    Validation_Final.pdf    the final validation plan (v1.5)
+    Report.pdf              the report
